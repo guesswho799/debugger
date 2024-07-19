@@ -14,7 +14,7 @@ ElfReader::ElfReader(std::string file_name):
     file(std::ifstream(file_name)),
     header(header_factory()),
     sections(sections_factory()),
-    static_symbols(static_symbols_factory())
+    _static_symbols(static_symbols_factory())
 {}
 
 ElfHeader ElfReader::header_factory()
@@ -69,32 +69,32 @@ std::vector<NamedSection> ElfReader::sections_factory()
     return named_sections;
 }
 
-std::optional<NamedSection> ElfReader::get_section(std::string section_name)
+NamedSection ElfReader::get_section(std::string section_name)
 {
     for (const auto& section : sections)
     {
         if (section.name == section_name)
         {
-            return std::make_optional(section);
+            return section;
         }
     }
 
-    return std::nullopt;
+    throw CriticalException(Status::elf_header__section_not_found);
 }
 
-std::optional<NamedSection> ElfReader::get_section(std::size_t section_index)
+NamedSection ElfReader::get_section(std::size_t section_index)
 {
     if (sections.size() < section_index)
     {
-        return std::nullopt;
+        throw CriticalException(Status::elf_header__section_not_found);
     }
 
-    return std::make_optional(sections[section_index]);
+    return sections[section_index];
 }
 
 std::vector<NamedSymbol> ElfReader::get_symbols()
 {
-    return static_symbols;
+    return _static_symbols;
 }
 
 std::vector<NamedSymbol> ElfReader::static_symbols_factory()
@@ -104,7 +104,7 @@ std::vector<NamedSymbol> ElfReader::static_symbols_factory()
         throw CriticalException(Status::elf_header__open_failed);
     }
 
-    NamedSection symbol_table = get_section(".symtab").value();
+    const NamedSection symbol_table = get_section(".symtab");
 
     file.seekg(symbol_table.unloaded_offset);
 
@@ -116,7 +116,7 @@ std::vector<NamedSymbol> ElfReader::static_symbols_factory()
         symbols.push_back(symbol);
     }
 
-    NamedSection str_table = get_section(".strtab").value();
+    NamedSection str_table = get_section(".strtab");
     NamedSymbol named_symbol{};
     std::vector<NamedSymbol> named_symbols{};
     for (const auto& symbol : symbols)
@@ -138,7 +138,7 @@ std::vector<NamedSymbol> ElfReader::get_functions()
 {
     std::vector<NamedSymbol> functions{};
     auto function_filter = [&](NamedSymbol symbol){return symbol.type & SymbolType::function; };
-    for(const auto& symbol : static_symbols | std::views::filter(function_filter))
+    for(const auto& symbol : _static_symbols | std::views::filter(function_filter))
     {
         functions.push_back(symbol);
     }
@@ -148,7 +148,7 @@ std::vector<NamedSymbol> ElfReader::get_functions()
 NamedSymbol ElfReader::get_function(std::string name)
 {
     auto function_filter = [&](NamedSymbol symbol){return symbol.type & SymbolType::function && symbol.name == name; };
-    for(const auto& symbol : static_symbols | std::views::filter(function_filter))
+    for(const auto& symbol : _static_symbols | std::views::filter(function_filter))
     {
         return symbol;
     }

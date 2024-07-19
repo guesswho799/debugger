@@ -9,6 +9,7 @@ enum class Status: int
     success = 0,
     elf_header__open_failed,
     elf_header__function_not_found,
+    elf_header__section_not_found,
     elf_runner__fork_failed,
     elf_runner__wait_failed,
     elf_runner__child_died,

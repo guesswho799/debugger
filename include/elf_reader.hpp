@@ -3,7 +3,6 @@
 #include <string>
 #include <fstream>
 #include <vector>
-#include <optional>
 
 #include "elf_header.hpp"
 
@@ -14,8 +13,8 @@ public:
     explicit ElfReader(std::string file_name);
     ~ElfReader() = default;
 
-    std::optional<NamedSection> get_section(std::string section_name);
-    std::optional<NamedSection> get_section(std::size_t section_index);
+    NamedSection get_section(std::string section_name);
+    NamedSection get_section(std::size_t section_index);
     std::vector<NamedSymbol> get_symbols();
     std::vector<NamedSymbol> get_functions();
     NamedSymbol get_function(std::string name);
@@ -31,5 +30,5 @@ private:
 public:
     ElfHeader header;
     std::vector<NamedSection> sections;
-    std::vector<NamedSymbol> static_symbols;
+    std::vector<NamedSymbol> _static_symbols;
 };

@@ -93,7 +93,7 @@ namespace Disassebler
             // Generate line
             std::vector<int> opcodes{};
             opcodes.insert(opcodes.end(), input_buffer+pc, input_buffer+pc+insn_size);
-            Line line {
+            const Line line {
                 .opcodes{opcodes},
                 .disassemble = global_line_buffer,
                 .address  = base_address + pc

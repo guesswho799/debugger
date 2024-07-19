@@ -196,8 +196,7 @@ CMakeFiles/Debugger.dir/src/main.cpp.o: \
  /usr/include/c++/13/fstream /usr/include/c++/13/bits/codecvt.h \
  /usr/include/x86_64-linux-gnu/c++/13/bits/basic_file.h \
  /usr/include/x86_64-linux-gnu/c++/13/bits/c++io.h \
- /usr/include/c++/13/bits/fstream.tcc /usr/include/c++/13/optional \
- /usr/include/c++/13/bits/enable_special_members.h \
+ /usr/include/c++/13/bits/fstream.tcc \
  /home/joe/projects/debugger/include/elf_header.hpp \
  /usr/include/c++/13/bitset \
  /home/joe/projects/debugger/include/elf_runner.hpp \

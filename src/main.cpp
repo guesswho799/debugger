@@ -30,13 +30,15 @@ int main(int argc, char *argv[])
 
     try
     {
-        std::string program_name{argv[1]};
-        std::string function_name{argv[2]};
+        const std::string program_name{argv[1]};
+        const std::string function_name{argv[2]};
         ElfReader static_debugger{program_name};
         ElfRunner dynamic_debugger{program_name};
 
-        auto main = static_debugger.get_function(function_name);
+        const auto main = static_debugger.get_function(function_name);
         std::cout << "function found!\n" << main << std::endl;
+        const auto section = static_debugger.get_section(main.section_index);
+        std::cout << section << std::endl;
 
         auto address_counter = dynamic_debugger.run_function(main.value, main.size);
         auto assembly = static_debugger.get_function_code(main);
