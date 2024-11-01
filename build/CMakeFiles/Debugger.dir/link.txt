@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wall -Wextra -g -O3 CMakeFiles/Debugger.dir/src/elf_reader.cpp.o CMakeFiles/Debugger.dir/src/elf_runner.cpp.o CMakeFiles/Debugger.dir/src/main.cpp.o -o Debugger  /usr/lib/x86_64-linux-gnu/libopcodes.so 
