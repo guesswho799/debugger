@@ -157,10 +157,11 @@ int main(int argc, char *argv[])
 	}
 
 	std::vector<NamedSymbol> functions = static_debugger.get_functions();
-	auto function_table_info = ftxui::vbox({});
+	std::vector<std::vector<std::string>> function_table_info;
+	function_table_info.push_back({"Name", "Address", "Size"});
 	for (const auto& item: functions)
 	{
-	    function_table_info = ftxui::vbox(function_table_info, ftxui::hbox({ftxui::text(item.name), ftxui::filler(), ftxui::separator(), ftxui::text(std::to_string(item.value)), ftxui::separator(), ftxui::text(std::to_string(item.size)), ftxui::text(" ")}), ftxui::separator());
+	    function_table_info.push_back({item.name, std::to_string(item.value), std::to_string(item.size)});
 	}
 
 	auto screen = ftxui::ScreenInteractive::Fullscreen();
@@ -171,37 +172,39 @@ int main(int argc, char *argv[])
 	option_x.value = &scroll_x;
 	option_x.min = 0.f;
 	option_x.max = 1.f;
-	option_x.increment = 0.1f;
+	option_x.increment = 0.5f;
 	option_x.direction = ftxui::Direction::Right;
-	option_x.color_active = ftxui::Color::Blue;
+	option_x.color_active = ftxui::Color::Black;
 	option_x.color_inactive = ftxui::Color::Black;
 	auto scrollbar_x = ftxui::Slider(option_x);
 	ftxui::SliderOption<float> option_y;
 	option_y.value = &scroll_y;
 	option_y.min = 0.f;
 	option_y.max = 1.f;
-	option_y.increment = 0.1f;
+	option_y.increment = 0.01f;
 	option_y.direction = ftxui::Direction::Down;
-	option_y.color_active = ftxui::Color::Blue;
+	option_y.color_active = ftxui::Color::Black;
 	option_y.color_inactive = ftxui::Color::Black;
 	auto scrollbar_y = ftxui::Slider(option_y);
 
 	int tab_selected = 0;
-	auto code_tab = ftxui::Renderer([&] { return disassembled_code | ftxui::border | ftxui::center; } );
-	auto open_file_tab = ftxui::Renderer([&] { return ftxui::text("in open file tab") | ftxui::border | ftxui::center; } );
-	auto string_tab = ftxui::Renderer([&] { return ftxui::text("in strings tab") | ftxui::border | ftxui::center; } );
+	auto code_tab        = ftxui::Renderer([&] { return disassembled_code | ftxui::border | ftxui::center; } );
+	auto open_file_tab   = ftxui::Renderer([&] { return ftxui::text("in open file tab") | ftxui::border | ftxui::center; } );
+	auto function_tab    = ftxui::Renderer([&] {
+	    auto table = ftxui::Table(function_table_info);
+	    table.SelectRow(0).Decorate(ftxui::bold);
+	    auto content = table.SelectRows(1, -1);
+	    content.DecorateCellsAlternateRow(ftxui::bgcolor(ftxui::Color::Default), 2, 0);
+	    content.DecorateCellsAlternateRow(ftxui::bgcolor(ftxui::Color::Grey11), 2, 1);
+	    return table.Render() | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex;
+	});
+	function_tab         = ftxui::Container::Vertical({ftxui::Container::Horizontal({function_tab, scrollbar_y}) | ftxui::flex, scrollbar_x});
+	auto string_tab      = ftxui::Renderer([&] { return ftxui::text("in strings tab") | ftxui::border | ftxui::center; } );
 	auto run_program_tab = ftxui::Renderer([&] { return ftxui::text("in run program tab") | ftxui::border | ftxui::center; } );
 	auto attach_to_program_tab = ftxui::Renderer([&] { return ftxui::text("in attach to program tab") | ftxui::border | ftxui::center; } );
-	auto middle = ftxui::Container::Tab({code_tab, open_file_tab, string_tab, run_program_tab, attach_to_program_tab}, &tab_selected);
-	auto left   = ftxui::Renderer([&] {
-	    return ftxui::vbox(ftxui::text("Function table") | ftxui::center,
-		   ftxui::text("Name Address Size") | ftxui::center,
-		   ftxui::separator(),
-		   function_table_info | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::frame | ftxui::flex);
-	});
-	left = ftxui::Container::Vertical({ftxui::Container::Horizontal({left, scrollbar_y}) | ftxui::flex, scrollbar_x});
+	auto middle          = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, run_program_tab, attach_to_program_tab}, &tab_selected);
 
-	std::vector<std::string> tab_values = {"main", "file", "strings", "run", "attach", "quit"};
+	std::vector<std::string> tab_values = {"Main", "Open file", "Functions", "Strings", "Run", "Attach", "Quit"};
 	auto option = ftxui::MenuOption::HorizontalAnimated();
 	option.entries_option.transform = [](const ftxui::EntryState& state) {
 		ftxui::Element e = ftxui::text(state.label) | ftxui::color(ftxui::Color::Blue);
@@ -210,14 +213,12 @@ int main(int argc, char *argv[])
 		return e;
 	};
 	option.elements_infix = [] { return ftxui::text(" | "); };
-	auto tab_toggle = ftxui::Menu(&tab_values, &tab_selected, option);
-	auto top    = ftxui::Renderer([&] { return tab_toggle->Render(); });
+	auto tab_toggle       = ftxui::Menu(&tab_values, &tab_selected, option);
+	auto top              = ftxui::Renderer([&] { return ftxui::hbox({ftxui::text(" "), tab_toggle->Render()}); });
 
 
-	int left_size = 40;
 	int top_size = 1;
 	auto container = middle;
-	container = ftxui::ResizableSplitLeft(left, container, &left_size);
 	container = ftxui::ResizableSplitTop(top, container, &top_size);
 
 	auto renderer = ftxui::Renderer(container, [&] { return container->Render() | ftxui::border; })
@@ -227,21 +228,25 @@ int main(int argc, char *argv[])
 		{
 	            tab_selected = 0;
 	    	}
-		else if (event == ftxui::Event::Character('f'))
+		else if (event == ftxui::Event::Character('o'))
 		{
 	            tab_selected = 1;
 	    	}
-		else if (event == ftxui::Event::Character('s'))
+		else if (event == ftxui::Event::Character('f'))
 		{
 	            tab_selected = 2;
 	    	}
-		else if (event == ftxui::Event::Character('r'))
+		else if (event == ftxui::Event::Character('s'))
 		{
 	            tab_selected = 3;
 	    	}
-		else if (event == ftxui::Event::Character('a'))
+		else if (event == ftxui::Event::Character('r'))
 		{
 	            tab_selected = 4;
+	    	}
+		else if (event == ftxui::Event::Character('a'))
+		{
+	            tab_selected = 5;
 	    	}
 		else if (event == ftxui::Event::Character('q'))
 		{
