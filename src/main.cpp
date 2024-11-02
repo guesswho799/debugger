@@ -1,6 +1,7 @@
 #include <iostream>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 
 #include <ftxui/component/captured_mouse.hpp>
 #include <ftxui/component/component.hpp>
@@ -119,7 +120,40 @@ int main(int argc, char *argv[])
 	auto disassembled_code = ftxui::vbox({ftxui::bold(ftxui::text(function_name)), ftxui::separator()});
 	for (const auto& item: assembly)
 	{
-	    disassembled_code = ftxui::vbox(disassembled_code, ftxui::text(item.disassemble));
+	    std::ostringstream address;
+	    address << std::hex << item.address;
+	    std::ostringstream opcodes_stream;
+	    auto opcodes_as_box = ftxui::vbox({});
+	    const int opcodes_per_line = 3;
+	    for (unsigned int i = 0; i < item.opcodes.size(); i++)
+	    {
+		if (i % opcodes_per_line == 0 && i != 0)
+		{
+		    opcodes_as_box = ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
+		    opcodes_stream.str("");
+		    opcodes_stream.clear();
+		}
+		if (item.opcodes[i] < 16) { opcodes_stream << '0'; }
+	        opcodes_stream << std::hex << item.opcodes[i] << ' ';
+	    }
+	    if ((item.opcodes.end() - item.opcodes.begin()) % opcodes_per_line != 0)
+	    {
+		for (unsigned int i = 0; i < (opcodes_per_line - ((item.opcodes.end() - item.opcodes.begin()) % opcodes_per_line)) * opcodes_per_line; i++)
+		{
+		    opcodes_stream << ' ';
+		}
+	    }
+	    opcodes_as_box = ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
+
+	    disassembled_code = ftxui::vbox(disassembled_code,
+		    ftxui::hbox({
+			    ftxui::text("0x"),
+			    ftxui::text(address.str()),
+			    ftxui::separator(),
+			    opcodes_as_box,
+			    ftxui::separator(),
+			    ftxui::text(item.disassemble)
+		    }));
 	}
 
 	std::vector<NamedSymbol> functions = static_debugger.get_functions();
@@ -155,7 +189,7 @@ int main(int argc, char *argv[])
 	auto middle = ftxui::Renderer([&] { return disassembled_code | ftxui::border | ftxui::center; } );
 	auto left   = ftxui::Renderer([&] { return ftxui::vbox(ftxui::text("Function table") | ftxui::center, ftxui::text("Name Address Size") | ftxui::center, ftxui::separator(), function_table_info | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::frame | ftxui::flex); } );
 	left = ftxui::Container::Vertical({ftxui::Container::Horizontal({left, scrollbar_y}) | ftxui::flex, scrollbar_x});
-	auto top    = ftxui::Renderer([&] { return ftxui::hbox({ftxui::text("q") | ftxui::color(ftxui::Color::Red), ftxui::text("uit"), ftxui::separator(), ftxui::text("f") | ftxui::color(ftxui::Color::Red), ftxui::text("ile"), ftxui::separator(), ftxui::text("s") | ftxui::color(ftxui::Color::Red), ftxui::text("trings"), ftxui::separator()}); } );
+	auto top    = ftxui::Renderer([&] { return ftxui::hbox({ftxui::text("q") | ftxui::color(ftxui::Color::Red), ftxui::text("uit"), ftxui::separator(), ftxui::text("f") | ftxui::color(ftxui::Color::Red), ftxui::text("ile"), ftxui::separator(), ftxui::text("s") | ftxui::color(ftxui::Color::Red), ftxui::text("trings"), ftxui::separator(), ftxui::text("r") | ftxui::color(ftxui::Color::Red), ftxui::text("un"), ftxui::separator(), ftxui::text("a") | ftxui::color(ftxui::Color::Red), ftxui::text("ttach"), ftxui::separator()}); } );
 
 
 	int left_size = 40;
