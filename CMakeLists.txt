@@ -19,6 +19,11 @@ FetchContent_MakeAvailable(FTXUI)
 
 add_executable(${PROJECT_NAME} ${sources})
 
-target_link_libraries(${PROJECT_NAME} /usr/lib/x86_64-linux-gnu/libopcodes.so)
+target_link_libraries(${PROJECT_NAME}
+	PRIVATE /usr/lib/x86_64-linux-gnu/libopcodes.so
+	PRIVATE ftxui::screen
+	PRIVATE ftxui::dom
+	PRIVATE ftxui::component
+)
 
 include_directories(include)
