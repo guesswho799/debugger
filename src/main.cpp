@@ -18,21 +18,6 @@
 #include "status.hpp"
 
 
-void log_function(std::vector<Disassebler::Line> lines, std::map<int, int> runtime_data)
-{
-    std::cout << "[counter] address: opcodes | assembly" << std::endl;
-    for (const auto& line : lines)
-    {
-        std::cout << "[" << runtime_data[line.address] << "] ";
-        std::cout << line.address << ": ";
-        for (const auto& opcode: line.opcodes)
-        {
-            std::cout << std::hex << opcode << " ";
-        }
-        std::cout << line.disassemble << "\n";
-    }
-}
-
 std::string pick_file_menu()
 {
     auto screen = ftxui::ScreenInteractive::Fullscreen();
@@ -99,6 +84,53 @@ std::string pick_file_menu()
     return "";
 }
 
+ftxui::Element gen_code_blocks(const std::string& function_name, const std::vector<Disassebler::Line>& assembly, std::optional<ElfRunner::runtime_mapping> runtime_data={})
+{
+    auto disassembled_code = ftxui::vbox({ftxui::bold(ftxui::text(function_name)), ftxui::separator()});
+    for (const auto& item: assembly)
+    {
+        std::ostringstream address;
+        address << std::hex << item.address;
+        std::ostringstream opcodes_stream;
+        auto opcodes_as_box = ftxui::vbox({});
+        const int opcodes_per_line = 3;
+        for (unsigned int i = 0; i < item.opcodes.size(); i++)
+        {
+	    if (i % opcodes_per_line == 0 && i != 0)
+	    {
+	        opcodes_as_box = ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
+	        opcodes_stream.str("");
+	        opcodes_stream.clear();
+	    }
+	    if (item.opcodes[i] < 16) { opcodes_stream << '0'; }
+	    opcodes_stream << std::hex << item.opcodes[i] << ' ';
+	}
+	if ((item.opcodes.end() - item.opcodes.begin()) % opcodes_per_line != 0)
+	{
+	    for (unsigned int i = 0; i < (opcodes_per_line - ((item.opcodes.end() - item.opcodes.begin()) % opcodes_per_line)) * opcodes_per_line; i++)
+	    {
+	        opcodes_stream << ' ';
+	    }
+        }
+        opcodes_as_box = ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
+	auto content = ftxui::hbox({
+	    ftxui::text("0x"),
+	    ftxui::text(address.str()),
+	    ftxui::separator(),
+	    opcodes_as_box,
+	    ftxui::separator(),
+	    ftxui::text(item.disassemble)
+    	});
+	if (runtime_data.has_value() and runtime_data.value()[item.address] != 0)
+	{
+	    content |= ftxui::bgcolor(ftxui::Color::Green);
+	}
+
+        disassembled_code = ftxui::vbox(disassembled_code, content);
+    }
+    return disassembled_code;
+}
+
 int main(int argc, char *argv[])
 {
     // TODO: FIX open file menu
@@ -111,54 +143,15 @@ int main(int argc, char *argv[])
         ElfReader static_debugger{program_name};
         ElfRunner dynamic_debugger{program_name};
 
-        const auto main = static_debugger.get_function(function_name);
-        const auto section = static_debugger.get_section(main.section_index);
+        const auto func = static_debugger.get_function(function_name);
+        const auto section = static_debugger.get_section(func.section_index);
 
-        // auto address_counter = dynamic_debugger.run_function(main.value, main.size);
-
-        auto assembly = static_debugger.get_function_code(main);
-	auto disassembled_code = ftxui::vbox({ftxui::bold(ftxui::text(function_name)), ftxui::separator()});
-	for (const auto& item: assembly)
-	{
-	    std::ostringstream address;
-	    address << std::hex << item.address;
-	    std::ostringstream opcodes_stream;
-	    auto opcodes_as_box = ftxui::vbox({});
-	    const int opcodes_per_line = 3;
-	    for (unsigned int i = 0; i < item.opcodes.size(); i++)
-	    {
-		if (i % opcodes_per_line == 0 && i != 0)
-		{
-		    opcodes_as_box = ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
-		    opcodes_stream.str("");
-		    opcodes_stream.clear();
-		}
-		if (item.opcodes[i] < 16) { opcodes_stream << '0'; }
-	        opcodes_stream << std::hex << item.opcodes[i] << ' ';
-	    }
-	    if ((item.opcodes.end() - item.opcodes.begin()) % opcodes_per_line != 0)
-	    {
-		for (unsigned int i = 0; i < (opcodes_per_line - ((item.opcodes.end() - item.opcodes.begin()) % opcodes_per_line)) * opcodes_per_line; i++)
-		{
-		    opcodes_stream << ' ';
-		}
-	    }
-	    opcodes_as_box = ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
-
-	    disassembled_code = ftxui::vbox(disassembled_code,
-		    ftxui::hbox({
-			    ftxui::text("0x"),
-			    ftxui::text(address.str()),
-			    ftxui::separator(),
-			    opcodes_as_box,
-			    ftxui::separator(),
-			    ftxui::text(item.disassemble)
-		    }));
-	}
+	const auto assembly = static_debugger.get_function_code(func);
+	auto disassembled_code = gen_code_blocks(function_name, assembly);
 
 	std::vector<NamedSymbol> functions = static_debugger.get_functions();
 	std::vector<std::vector<std::string>> function_table_info;
-	function_table_info.push_back({"Name", "Address", "Size"});
+	function_table_info.push_back({"Name", "Address ", "Size"});
 	for (const auto& item: functions)
 	{
 	    function_table_info.push_back({item.name, std::to_string(item.value), std::to_string(item.size)});
@@ -193,35 +186,48 @@ int main(int argc, char *argv[])
 	auto function_tab    = ftxui::Renderer([&] {
 	    auto table = ftxui::Table(function_table_info);
 	    table.SelectRow(0).Decorate(ftxui::bold);
+	    table.SelectColumn(0).Decorate(ftxui::flex);
 	    auto content = table.SelectRows(1, -1);
 	    content.DecorateCellsAlternateRow(ftxui::bgcolor(ftxui::Color::Default), 2, 0);
 	    content.DecorateCellsAlternateRow(ftxui::bgcolor(ftxui::Color::Grey11), 2, 1);
 	    return table.Render() | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex;
 	});
+
 	function_tab         = ftxui::Container::Vertical({ftxui::Container::Horizontal({function_tab, scrollbar_y}) | ftxui::flex, scrollbar_x});
 	auto string_tab      = ftxui::Renderer([&] { return ftxui::text("in strings tab") | ftxui::border | ftxui::center; } );
-	auto run_program_tab = ftxui::Renderer([&] { return ftxui::text("in run program tab") | ftxui::border | ftxui::center; } );
-	auto attach_to_program_tab = ftxui::Renderer([&] { return ftxui::text("in attach to program tab") | ftxui::border | ftxui::center; } );
-	auto middle          = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, run_program_tab, attach_to_program_tab}, &tab_selected);
+	auto run_program_tab = ftxui::Renderer([&] { 
+	    std::variant<ElfRunner::runtime_mapping, ElfRunner::current_address> runtime_value = dynamic_debugger.run_function(func.value, func.size);
+	    if (std::holds_alternative<ElfRunner::current_address>(runtime_value))
+	    {
+	        std::ostringstream function_address;
+	        function_address << "function address: 0x" << std::hex << std::to_string(func.value);
+	        std::ostringstream current_information;
+	        current_information << "current address: 0x" << std::hex << std::to_string(std::get<ElfRunner::current_address>(runtime_value));
+		screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
+	        return ftxui::vbox({ftxui::text("Running program..."), ftxui::text(function_address.str()), ftxui::text(current_information.str())}) | ftxui::border | ftxui::center;
+	    }
+	    else
+	    {
+	        disassembled_code = gen_code_blocks(function_name, assembly, std::get<ElfRunner::runtime_mapping>(runtime_value));
+		screen.PostEvent(ftxui::Event::Character('m'));
+		return ftxui::vbox({});
+	    }
+	});
+	auto middle          = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, run_program_tab}, &tab_selected);
 
-	std::vector<std::string> tab_values = {"Main", "Open file", "Functions", "Strings", "Run", "Attach", "Quit"};
+	std::vector<std::string> tab_values = {"Main", "Open file", "Functions", "Strings", "Debug function", "Quit"};
 	auto option = ftxui::MenuOption::HorizontalAnimated();
+	option.elements_infix = [] { return ftxui::text(" | "); };
 	option.entries_option.transform = [](const ftxui::EntryState& state) {
 		ftxui::Element e = ftxui::text(state.label) | ftxui::color(ftxui::Color::Blue);
 		if (state.active)
 		    e = e | ftxui::bold | ftxui::underlined;
 		return e;
 	};
-	option.elements_infix = [] { return ftxui::text(" | "); };
-	auto tab_toggle       = ftxui::Menu(&tab_values, &tab_selected, option);
-	auto top              = ftxui::Renderer([&] { return ftxui::hbox({ftxui::text(" "), tab_toggle->Render()}); });
+	auto tab_toggle = ftxui::Menu(&tab_values, &tab_selected, option);
+	auto top        = ftxui::Renderer([&] { return ftxui::hbox({ftxui::text(" "), tab_toggle->Render()}) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 1); });
 
-
-	int top_size = 1;
-	auto container = middle;
-	container = ftxui::ResizableSplitTop(top, container, &top_size);
-
-	auto renderer = ftxui::Renderer(container, [&] { return container->Render() | ftxui::border; })
+	auto renderer = ftxui::Renderer(middle, [&] { return ftxui::vbox({top->Render(), ftxui::separator(), middle->Render()}); })
 	    | ftxui::CatchEvent([&](ftxui::Event event)
 	    {
 		if (event == ftxui::Event::Character('m'))
@@ -240,13 +246,10 @@ int main(int argc, char *argv[])
 		{
 	            tab_selected = 3;
 	    	}
-		else if (event == ftxui::Event::Character('r'))
+		else if (event == ftxui::Event::Character('d'))
 		{
+	            disassembled_code = gen_code_blocks(function_name, assembly);
 	            tab_selected = 4;
-	    	}
-		else if (event == ftxui::Event::Character('a'))
-		{
-	            tab_selected = 5;
 	    	}
 		else if (event == ftxui::Event::Character('q'))
 		{
