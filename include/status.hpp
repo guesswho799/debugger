@@ -14,6 +14,8 @@ enum class Status: int
     elf_runner__wait_failed,
     elf_runner__child_died,
     elf_runner__child_finished,
+    elf_runner__peek_failed,
+    elf_runner__step_failed,
 };
 
 

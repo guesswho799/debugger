@@ -17,7 +17,7 @@ ElfRunner::ElfRunner(std::string file_name):
 
 ElfRunner::~ElfRunner()
 {
-    ptrace(PTRACE_CONT, child_pid);
+    ptrace(PTRACE_CONT, child_pid, NULL, NULL);
 }
 
 pid_t ElfRunner::run(std::string file_name)
@@ -51,46 +51,49 @@ pid_t ElfRunner::run(std::string file_name)
     return pid;
 }
 
-void ElfRunner::get_to_address(uint64_t address)
+bool ElfRunner::get_to_address(uint64_t address)
 {
     int child_status = 0;
     struct user_regs_struct regs{};
 
-    ptrace(PTRACE_GETREGS, child_pid, NULL, &regs);
-    while (regs.rip != address)
+    errno = 0;
+    if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
+    for (int counter = 0; counter < 10000 and regs.rip != address; counter++)
     {
-        ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL);
-        wait(&child_status);
-        if (WIFEXITED(child_status))
-        {
-            throw CriticalException(Status::elf_runner__child_finished);
-        }
-
-        ptrace(PTRACE_GETREGS, child_pid, NULL, &regs);
+        if (ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL) == -1) { throw CriticalException(Status::elf_runner__step_failed); }
+        if (wait(&child_status) == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
+        if (WIFEXITED(child_status) or WIFSIGNALED(child_status)) { throw CriticalException(Status::elf_runner__child_finished); }
+        if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
     }
+
+    return regs.rip == address;
 }
 
-std::map<int, int> ElfRunner::run_function(uint64_t address, uint64_t size)
+std::variant<ElfRunner::runtime_mapping, ElfRunner::current_address> ElfRunner::run_function(uint64_t address, uint64_t size)
 {
-    std::map<int, int> address_counter{};
-    get_to_address(address);
-
-    int child_status = 0;
     struct user_regs_struct regs{};
+    if (!get_to_address(address))
+    {
+	errno = 0;
+	if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
+	return static_cast<current_address>(regs.rip);
+    }
 
-    ptrace(PTRACE_GETREGS, child_pid, NULL, &regs);
+    runtime_mapping address_counter{};
+    int child_status = 0;
+
+    errno = 0;
+    if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
     while (regs.rip >= address and regs.rip <= address + size)
     {
         address_counter[regs.rip]++;
 
-        ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL);
-        wait(&child_status);
-        if (WIFEXITED(child_status) or WIFSIGNALED(child_status))
-        {
-            std::cout << "program exited\n";
-            break;
-        }
-        ptrace(PTRACE_GETREGS, child_pid, NULL, &regs);
+	if (ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL) == -1) { throw CriticalException(Status::elf_runner__step_failed); }
+	if (wait(&child_status) == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
+	if (WIFEXITED(child_status) or WIFSIGNALED(child_status)) { throw CriticalException(Status::elf_runner__child_finished); }
+
+        errno = 0;
+        if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
     }
 
     return address_counter;
