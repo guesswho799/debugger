@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <ranges>
+#include <ctype.h>
 
 #include "disassembler.hpp"
 #include "elf_reader.hpp"
@@ -14,7 +15,8 @@ ElfReader::ElfReader(std::string file_name):
     file(std::ifstream(file_name)),
     header(header_factory()),
     sections(sections_factory()),
-    _static_symbols(static_symbols_factory())
+    _static_symbols(static_symbols_factory()),
+    _strings(strings_factory())
 {}
 
 ElfHeader ElfReader::header_factory()
@@ -97,6 +99,11 @@ std::vector<NamedSymbol> ElfReader::get_symbols()
     return _static_symbols;
 }
 
+std::vector<std::string> ElfReader::get_strings()
+{
+    return _strings;
+}
+
 std::vector<NamedSymbol> ElfReader::static_symbols_factory()
 {
     if (!file.is_open())
@@ -132,6 +139,33 @@ std::vector<NamedSymbol> ElfReader::static_symbols_factory()
     }
 
     return named_symbols;
+}
+
+std::vector<std::string> ElfReader::strings_factory()
+{
+    if (!file.is_open())
+    {
+        throw CriticalException(Status::elf_header__open_failed);
+    }
+
+    const NamedSection string_section = get_section(".rodata");
+    file.seekg(string_section.unloaded_offset);
+    std::vector<std::string> strings;
+    while (file.tellg() < string_section.unloaded_offset + string_section.size)
+    {
+	std::string string;
+	bool skip_irrelevant_strings = false;
+        std::getline(file, string, '\0');
+
+	if (string.length() == 0) skip_irrelevant_strings = true;
+	for (const char& character : string)
+	    if (!isascii(character)) skip_irrelevant_strings = true;
+	if (skip_irrelevant_strings) continue;
+
+	strings.push_back(string);
+    }
+
+    return strings;
 }
 
 std::vector<NamedSymbol> ElfReader::get_functions()

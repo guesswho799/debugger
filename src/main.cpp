@@ -157,6 +157,13 @@ int main(int argc, char *argv[])
 	    function_table_info.push_back({item.name, std::to_string(item.value), std::to_string(item.size)});
 	}
 
+	auto string_tab_content = ftxui::vbox({ftxui::text("strings"), ftxui::separator()});
+	std::vector<std::string> strings = static_debugger.get_strings();
+	for (const auto& item: strings)
+	{
+	     string_tab_content = ftxui::vbox({string_tab_content, ftxui::text(item)});
+	}
+
 	auto screen = ftxui::ScreenInteractive::Fullscreen();
 	// TODO: fix slider acting wierd
 	float scroll_x = 0.f;
@@ -194,7 +201,8 @@ int main(int argc, char *argv[])
 	});
 
 	function_tab         = ftxui::Container::Vertical({ftxui::Container::Horizontal({function_tab, scrollbar_y}) | ftxui::flex, scrollbar_x});
-	auto string_tab      = ftxui::Renderer([&] { return ftxui::text("in strings tab") | ftxui::border | ftxui::center; } );
+	auto string_tab      = ftxui::Renderer([&] { return string_tab_content | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex; } );
+	string_tab           = ftxui::Container::Horizontal({string_tab, scrollbar_y}) | ftxui::flex;
 	auto run_program_tab = ftxui::Renderer([&] { 
 	    std::variant<ElfRunner::runtime_mapping, ElfRunner::current_address> runtime_value = dynamic_debugger.run_function(func.value, func.size);
 	    if (std::holds_alternative<ElfRunner::current_address>(runtime_value))
