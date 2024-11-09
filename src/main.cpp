@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <stdlib.h>
 
 #include <ftxui/component/captured_mouse.hpp>
 #include <ftxui/component/component.hpp>
@@ -17,75 +18,12 @@
 #include "elf_runner.hpp"
 #include "status.hpp"
 
+#define CHECK_LOADED_ELF() if (!static_debugger.has_value() or !dynamic_debugger.has_value()) return ftxui::text("no file loaded..")
 
-std::string pick_file_menu()
+
+ftxui::Element load_code_blocks(const std::string& function_name, const ElfReader& static_debugger, std::optional<ElfRunner::runtime_mapping> runtime_data={})
 {
-    auto screen = ftxui::ScreenInteractive::Fullscreen();
-    std::string file_path;
-    int selector = 0;
-    bool should_stay = true;
-
-    std::vector<ftxui::Component> files;
-    while (should_stay)
-    {
-	files.clear();
-	std::string search_path = file_path;
-	if (!std::filesystem::exists(file_path))
-	{
-	    std::size_t last_directory_index = file_path.find_last_of('/');
-	    if (last_directory_index == std::string::npos) { search_path = "."; }
-	    else { search_path = std::string(file_path.c_str(), last_directory_index); }
-	}
-	for (const auto& file: std::filesystem::recursive_directory_iterator(search_path))
-	{
-	    files.emplace_back(ftxui::MenuEntry(file.path().string()));
-	}
-
-	ftxui::Component file_input = ftxui::Input(&file_path, "");
-	auto component = ftxui::Container::Vertical({file_input});
-	auto menu = ftxui::Container::Vertical(files, &selector);
-
-	auto renderer = ftxui::Renderer(component, [&]{
-	    return ftxui::vbox({
-	        menu->Render(),
-	        ftxui::separator(),
-	        ftxui::hbox(ftxui::text(" File path : "), file_input->Render()),
-	    }) | ftxui::border;
-	// should exit
-	}) | ftxui::CatchEvent([&](ftxui::Event event) {
-	    if (event == ftxui::Event::Return)
-	    {
-	        should_stay = false;
-	        screen.ExitLoopClosure()();
-	        return true;
-	    }
-	    return false;
-	// update selector
-	}) | ftxui::CatchEvent([&](ftxui::Event event) {
-	    if (event == ftxui::Event::ArrowUp) { selector++; }
-	    if (event == ftxui::Event::ArrowDown) { selector--; }
-	    return false;
-	// update menu options
-	}) | ftxui::CatchEvent([&](ftxui::Event event) {
-	    if (event.is_character())
-	    {
-	        selector = 0;
-	        file_path += event.character();
-	        screen.ExitLoopClosure()();
-	        return true;
-	    }
-	    return false;
-	});
-
-	screen.Loop(renderer);
-    }
-
-    // return files[selector];
-    return "";
-}
-
-ftxui::Element gen_code_blocks(const std::string& function_name, const std::vector<Disassebler::Line>& assembly, std::optional<ElfRunner::runtime_mapping> runtime_data={})
-{
+    auto assembly = static_debugger.get_function_code_by_name(function_name);
     auto disassembled_code = ftxui::vbox({ftxui::bold(ftxui::text(function_name)), ftxui::separator()});
     for (const auto& item: assembly)
     {
@@ -131,37 +69,50 @@ ftxui::Element gen_code_blocks(const std::string& function_name, const std::vect
     return disassembled_code;
 }
 
+std::vector<std::vector<std::string>> load_function_table(const ElfReader& static_debugger)
+{
+    std::vector<std::vector<std::string>> function_table_info;
+    function_table_info.push_back({"Name", "Address ", "Size"});
+    for (const auto& item: static_debugger.get_functions())
+    {
+        function_table_info.push_back({item.name, std::to_string(item.value), std::to_string(item.size)});
+    }
+    return function_table_info;
+}
+
+ftxui::Element load_strings(const ElfReader& static_debugger)
+{
+    auto string_tab_content = ftxui::vbox({ftxui::text("strings"), ftxui::separator()});
+    std::vector<std::string> strings = static_debugger.get_strings();
+    for (const auto& item: strings)
+    {
+         string_tab_content = ftxui::vbox({string_tab_content, ftxui::text(item)});
+    }
+    return string_tab_content;
+}
+
+
 int main(int argc, char *argv[])
 {
-    // TODO: FIX open file menu
-    if (argc < 2) { return 1; }
+    int tab_selected = 0;
+    bool in_search_mode = false;
+    std::string binary_path;
+    std::string function_name;
+    if (argc < 2) { tab_selected = 1; in_search_mode = true; }
+    if (argc >= 2) { binary_path = argv[1]; }
+    if (argc < 3) { function_name = "_start"; }
+    if (argc >= 3) { function_name = argv[2]; }
 
     try
     {
-        const std::string program_name{argv[1]};
-        const std::string function_name{argv[2]};
-        ElfReader static_debugger{program_name};
-        ElfRunner dynamic_debugger{program_name};
-
-        const auto func = static_debugger.get_function(function_name);
-        const auto section = static_debugger.get_section(func.section_index);
-
-	const auto assembly = static_debugger.get_function_code(func);
-	auto disassembled_code = gen_code_blocks(function_name, assembly);
-
-	std::vector<NamedSymbol> functions = static_debugger.get_functions();
-	std::vector<std::vector<std::string>> function_table_info;
-	function_table_info.push_back({"Name", "Address ", "Size"});
-	for (const auto& item: functions)
+	std::optional<ElfReader> static_debugger;
+        std::optional<ElfRunner> dynamic_debugger;
+	auto disassembled_code = ftxui::text("no file loaded..");
+	if (!binary_path.empty())
 	{
-	    function_table_info.push_back({item.name, std::to_string(item.value), std::to_string(item.size)});
-	}
-
-	auto string_tab_content = ftxui::vbox({ftxui::text("strings"), ftxui::separator()});
-	std::vector<std::string> strings = static_debugger.get_strings();
-	for (const auto& item: strings)
-	{
-	     string_tab_content = ftxui::vbox({string_tab_content, ftxui::text(item)});
+            static_debugger = std::optional<ElfReader>(binary_path);
+            dynamic_debugger = std::optional<ElfRunner>(binary_path);
+	    disassembled_code = load_code_blocks(function_name, static_debugger.value());
 	}
 
 	auto screen = ftxui::ScreenInteractive::Fullscreen();
@@ -187,11 +138,85 @@ int main(int argc, char *argv[])
 	option_y.color_inactive = ftxui::Color::Black;
 	auto scrollbar_y = ftxui::Slider(option_y);
 
-	int tab_selected = 0;
-	auto code_tab        = ftxui::Renderer([&] { return disassembled_code | ftxui::border | ftxui::center; } );
-	auto open_file_tab   = ftxui::Renderer([&] { return ftxui::text("in open file tab") | ftxui::border | ftxui::center; } );
+	auto code_tab = ftxui::Renderer([&] {
+	    CHECK_LOADED_ELF();
+	    return disassembled_code | ftxui::border | ftxui::center;
+	} );
+
+	std::string file_path;
+	std::vector<ftxui::Component> files;
+	std::vector<std::string> files_as_strings;
+	ftxui::Component file_input = ftxui::Input(&file_path, "");
+	int open_file_selector = 0;
+	auto open_file_tab   = ftxui::Renderer(file_input, [&] {
+            files.clear();
+            files_as_strings.clear();
+            std::string search_path = file_path;
+            if (!std::filesystem::exists(file_path))
+            {
+                std::size_t last_directory_index = file_path.find_last_of('/');
+                if (last_directory_index == std::string::npos) { search_path = "."; }
+                else { search_path = std::string(file_path.c_str(), last_directory_index); }
+            }
+	    if (std::filesystem::is_directory(search_path))
+	    {
+                int i = 0;
+                for (const auto& file: std::filesystem::recursive_directory_iterator(search_path))
+                {
+                    files.emplace_back(ftxui::MenuEntry(file.path().string()));
+                    files_as_strings.emplace_back(file.path().string());
+                    if (++i == 20) break;
+                }
+	    }
+	    else
+	    {
+                files.emplace_back(ftxui::MenuEntry(search_path));
+	        files_as_strings.emplace_back(search_path);
+	    }
+            auto menu = ftxui::Container::Vertical(files, &open_file_selector);
+	    if (in_search_mode)
+	    {
+                return ftxui::vbox({
+                    ftxui::hbox(ftxui::text(" File path : "), file_input->Render()),
+                    ftxui::separator(),
+                    menu->Render(),
+                }) | ftxui::border;
+	    }
+	    else
+	    {
+                return ftxui::vbox({
+		    ftxui::text("press / to start searching..."),
+                    ftxui::separator(),
+		    menu->Render()
+		}) | ftxui::border;
+	    }
+	}) | ftxui::CatchEvent([&](ftxui::Event event)
+	    {
+		if (event == ftxui::Event::Escape         and in_search_mode == true) in_search_mode = false; 
+		if (event == ftxui::Event::Character('/') and in_search_mode == false)
+		{ in_search_mode = true; file_path = ""; screen.PostEvent(ftxui::Event::Backspace); }
+		if (in_search_mode)
+		{
+	            if (event == ftxui::Event::ArrowUp or event == ftxui::Event::TabReverse) open_file_selector--;
+	            if (event == ftxui::Event::ArrowDown or event == ftxui::Event::Tab) open_file_selector++;
+	            if (open_file_selector < 0)                               open_file_selector = 0;
+	            if (open_file_selector > files.end() - files.begin() - 1) open_file_selector = files.end() - files.begin() - 1;
+	            if (event == ftxui::Event::Return)
+	            {
+	                binary_path = files_as_strings[open_file_selector];
+	                static_debugger = std::optional<ElfReader>(binary_path);
+	                dynamic_debugger = std::optional<ElfRunner>(binary_path);
+	                disassembled_code = load_code_blocks(function_name, static_debugger.value());
+	                in_search_mode = false;
+	                file_path = "";
+	                screen.PostEvent(ftxui::Event::Character('m'));
+	            }
+	        }
+		return false;
+	    });
 	auto function_tab    = ftxui::Renderer([&] {
-	    auto table = ftxui::Table(function_table_info);
+	    CHECK_LOADED_ELF();
+	    auto table = ftxui::Table(load_function_table(static_debugger.value()));
 	    table.SelectRow(0).Decorate(ftxui::bold);
 	    table.SelectColumn(0).Decorate(ftxui::flex);
 	    auto content = table.SelectRows(1, -1);
@@ -201,10 +226,15 @@ int main(int argc, char *argv[])
 	});
 
 	function_tab         = ftxui::Container::Vertical({ftxui::Container::Horizontal({function_tab, scrollbar_y}) | ftxui::flex, scrollbar_x});
-	auto string_tab      = ftxui::Renderer([&] { return string_tab_content | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex; } );
+	auto string_tab      = ftxui::Renderer([&] {
+	    CHECK_LOADED_ELF();
+	    return load_strings(static_debugger.value()) | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex;
+	});
 	string_tab           = ftxui::Container::Horizontal({string_tab, scrollbar_y}) | ftxui::flex;
 	auto run_program_tab = ftxui::Renderer([&] { 
-	    std::variant<ElfRunner::runtime_mapping, ElfRunner::current_address> runtime_value = dynamic_debugger.run_function(func.value, func.size);
+	    CHECK_LOADED_ELF();
+	    const auto func = static_debugger.value().get_function(function_name);
+	    const std::variant<ElfRunner::runtime_mapping, ElfRunner::current_address> runtime_value = dynamic_debugger.value().run_function(func.value, func.size);
 	    if (std::holds_alternative<ElfRunner::current_address>(runtime_value))
 	    {
 	        std::ostringstream function_address;
@@ -216,12 +246,12 @@ int main(int argc, char *argv[])
 	    }
 	    else
 	    {
-	        disassembled_code = gen_code_blocks(function_name, assembly, std::get<ElfRunner::runtime_mapping>(runtime_value));
+	        disassembled_code = load_code_blocks(function_name, static_debugger.value(), std::get<ElfRunner::runtime_mapping>(runtime_value));
 		screen.PostEvent(ftxui::Event::Character('m'));
 		return ftxui::vbox({});
 	    }
 	});
-	auto middle          = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, run_program_tab}, &tab_selected);
+	auto middle = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, run_program_tab}, &tab_selected);
 
 	std::vector<std::string> tab_values = {"Main", "Open file", "Functions", "Strings", "Debug function", "Quit"};
 	auto option = ftxui::MenuOption::HorizontalAnimated();
@@ -238,6 +268,7 @@ int main(int argc, char *argv[])
 	auto renderer = ftxui::Renderer(middle, [&] { return ftxui::vbox({top->Render(), ftxui::separator(), middle->Render()}); })
 	    | ftxui::CatchEvent([&](ftxui::Event event)
 	    {
+		if (in_search_mode) return false;
 		if (event == ftxui::Event::Character('m'))
 		{
 	            tab_selected = 0;
@@ -256,7 +287,6 @@ int main(int argc, char *argv[])
 	    	}
 		else if (event == ftxui::Event::Character('d'))
 		{
-	            disassembled_code = gen_code_blocks(function_name, assembly);
 	            tab_selected = 4;
 	    	}
 		else if (event == ftxui::Event::Character('q'))
@@ -271,7 +301,7 @@ int main(int argc, char *argv[])
     }
     catch (const std::exception& exception)
     {
-        std::cout << "cought exception: " << exception.what() << std::endl;
+        std::cout << "cought exception: " << exception.what() << std::endl << binary_path << " " << function_name << std::endl;
         return 1;
     }
 

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <sys/user.h>
 #include <sys/reg.h>
+#include <signal.h>
 #include <iostream>
 
 
@@ -17,7 +18,9 @@ ElfRunner::ElfRunner(std::string file_name):
 
 ElfRunner::~ElfRunner()
 {
-    ptrace(PTRACE_CONT, child_pid, NULL, NULL);
+    // TODO: adding this causes failure check why
+    // kill(child_pid, SIGKILL);
+    // wait(NULL);
 }
 
 pid_t ElfRunner::run(std::string file_name)
@@ -63,6 +66,7 @@ bool ElfRunner::get_to_address(uint64_t address)
         if (ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL) == -1) { throw CriticalException(Status::elf_runner__step_failed); }
         if (wait(&child_status) == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
         if (WIFEXITED(child_status) or WIFSIGNALED(child_status)) { throw CriticalException(Status::elf_runner__child_finished); }
+        errno = 0;
         if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
     }
 
