@@ -1,8 +1,9 @@
+
 #include <iostream>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
-#include <stdlib.h>
+#include <ranges>
 
 #include <ftxui/component/captured_mouse.hpp>
 #include <ftxui/component/component.hpp>
@@ -72,7 +73,6 @@ ftxui::Element load_code_blocks(const std::string& function_name, const ElfReade
 std::vector<std::vector<std::string>> load_function_table(const ElfReader& static_debugger)
 {
     std::vector<std::vector<std::string>> function_table_info;
-    function_table_info.push_back({"Name", "Address ", "Size"});
     for (const auto& item: static_debugger.get_functions())
     {
         function_table_info.push_back({item.name, std::to_string(item.value), std::to_string(item.size)});
@@ -177,17 +177,17 @@ int main(int argc, char *argv[])
 	    if (in_search_mode)
 	    {
                 return ftxui::vbox({
-                    ftxui::hbox(ftxui::text(" File path : "), file_input->Render()),
+                    ftxui::window(ftxui::text("Search file"), file_input->Render()),
                     ftxui::separator(),
-                    menu->Render(),
+                    ftxui::window(ftxui::text("Files"), menu->Render())
                 }) | ftxui::border;
 	    }
 	    else
 	    {
                 return ftxui::vbox({
-		    ftxui::text("press / to start searching..."),
+		    ftxui::text(" Press / to start searching..."),
                     ftxui::separator(),
-		    menu->Render()
+                    ftxui::window(ftxui::text("Files"), menu->Render())
 		}) | ftxui::border;
 	    }
 	}) | ftxui::CatchEvent([&](ftxui::Event event)
@@ -214,16 +214,76 @@ int main(int argc, char *argv[])
 	        }
 		return false;
 	    });
-	auto function_tab    = ftxui::Renderer([&] {
+
+	std::string function_input_content;
+	ftxui::Component function_input = ftxui::Input(&function_input_content, "");
+	int function_selector = 1;
+	std::vector<std::vector<std::string>> function_table_content;
+	auto function_tab    = ftxui::Renderer(function_input, [&] {
 	    CHECK_LOADED_ELF();
-	    auto table = ftxui::Table(load_function_table(static_debugger.value()));
+	    if (function_input_content.empty() or !in_search_mode)
+	    { function_table_content = load_function_table(static_debugger.value()); }
+	    else
+	    {
+	        function_table_content = load_function_table(static_debugger.value()) |
+		    std::views::filter([&](const auto& item) { return item[0].find(function_input_content) != std::string::npos; }) |
+		    std::ranges::to<std::vector>();
+	    }
+	    function_table_content.insert(function_table_content.begin(), 1, {"Name", "Address ", "Size"});
+	    auto table = ftxui::Table(function_table_content);
 	    table.SelectRow(0).Decorate(ftxui::bold);
 	    table.SelectColumn(0).Decorate(ftxui::flex);
-	    auto content = table.SelectRows(1, -1);
-	    content.DecorateCellsAlternateRow(ftxui::bgcolor(ftxui::Color::Default), 2, 0);
-	    content.DecorateCellsAlternateRow(ftxui::bgcolor(ftxui::Color::Grey11), 2, 1);
-	    return table.Render() | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex;
-	});
+	    if (in_search_mode)
+	    {
+	        table.SelectRow(function_selector).Decorate(ftxui::bgcolor(ftxui::Color::Grey11));
+                return ftxui::vbox({
+                    ftxui::window(ftxui::text("Search function"), function_input->Render()),
+                    ftxui::separator(),
+                    ftxui::window(ftxui::text("Functions"), table.Render() | ftxui::frame | ftxui::flex)
+                }) | ftxui::flex | ftxui::border;
+	    }
+	    else
+	    {
+	        auto content = table.SelectRows(1, -1);
+	        content.DecorateCellsAlternateRow(ftxui::bgcolor(ftxui::Color::Default), 2, 0);
+	        content.DecorateCellsAlternateRow(ftxui::bgcolor(ftxui::Color::Grey11), 2, 1);
+                return ftxui::vbox({
+		    ftxui::text(" Press / to start searching..."),
+                    ftxui::separator(),
+                    ftxui::window(ftxui::text("Functions"), table.Render() | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex)
+		}) | ftxui::flex | ftxui::border;
+	    }
+	}) | ftxui::CatchEvent([&](ftxui::Event event)
+	    {
+		if (event == ftxui::Event::Escape         and in_search_mode == true) in_search_mode = false; 
+		if (event == ftxui::Event::Character('/') and in_search_mode == false)
+		{ in_search_mode = true; function_input_content = ""; screen.PostEvent(ftxui::Event::Backspace); }
+		if (in_search_mode)
+		{
+	            if (event == ftxui::Event::ArrowUp or event == ftxui::Event::TabReverse)
+		    {
+		        function_selector--;
+	                if (function_selector < 1) function_selector = 1;
+			return true;
+		    }
+	            if (event == ftxui::Event::ArrowDown or event == ftxui::Event::Tab)
+		    {
+		        function_selector++;
+	                if (function_selector > function_table_content.end() - function_table_content.begin() - 1) function_selector = function_table_content.end() - function_table_content.begin() - 1;
+			return true;
+		    }
+	            if (event == ftxui::Event::Return)
+	            {
+	                function_name = function_table_content[function_selector][0];
+	                disassembled_code = load_code_blocks(function_name, static_debugger.value());
+	                in_search_mode = false;
+	                function_input_content = "";
+			function_selector = 0;
+	                screen.PostEvent(ftxui::Event::Character('m'));
+	            }
+	        }
+		return false;
+	    });
 
 	function_tab         = ftxui::Container::Vertical({ftxui::Container::Horizontal({function_tab, scrollbar_y}) | ftxui::flex, scrollbar_x});
 	auto string_tab      = ftxui::Renderer([&] {
@@ -307,3 +367,4 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
