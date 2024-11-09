@@ -13,6 +13,7 @@
 
 ElfReader::ElfReader(std::string file_name):
     file(std::ifstream(file_name)),
+    _file_name(file_name),
     header(header_factory()),
     sections(sections_factory()),
     _static_symbols(static_symbols_factory()),
@@ -71,7 +72,7 @@ std::vector<NamedSection> ElfReader::sections_factory()
     return named_sections;
 }
 
-NamedSection ElfReader::get_section(std::string section_name)
+NamedSection ElfReader::get_section(std::string section_name) const
 {
     for (const auto& section : sections)
     {
@@ -84,7 +85,7 @@ NamedSection ElfReader::get_section(std::string section_name)
     throw CriticalException(Status::elf_header__section_not_found);
 }
 
-NamedSection ElfReader::get_section(std::size_t section_index)
+NamedSection ElfReader::get_section(std::size_t section_index) const
 {
     if (sections.size() < section_index)
     {
@@ -94,12 +95,12 @@ NamedSection ElfReader::get_section(std::size_t section_index)
     return sections[section_index];
 }
 
-std::vector<NamedSymbol> ElfReader::get_symbols()
+std::vector<NamedSymbol> ElfReader::get_symbols() const
 {
     return _static_symbols;
 }
 
-std::vector<std::string> ElfReader::get_strings()
+std::vector<std::string> ElfReader::get_strings() const
 {
     return _strings;
 }
@@ -168,7 +169,7 @@ std::vector<std::string> ElfReader::strings_factory()
     return strings;
 }
 
-std::vector<NamedSymbol> ElfReader::get_functions()
+std::vector<NamedSymbol> ElfReader::get_functions() const
 {
     std::vector<NamedSymbol> functions{};
     auto function_filter = [&](NamedSymbol symbol){return symbol.type & SymbolType::function; };
@@ -179,7 +180,7 @@ std::vector<NamedSymbol> ElfReader::get_functions()
     return functions;
 }
 
-NamedSymbol ElfReader::get_function(std::string name)
+NamedSymbol ElfReader::get_function(std::string name) const
 {
     auto function_filter = [&](NamedSymbol symbol){return symbol.type & SymbolType::function && symbol.name == name; };
     for(const auto& symbol : _static_symbols | std::views::filter(function_filter))
@@ -189,7 +190,7 @@ NamedSymbol ElfReader::get_function(std::string name)
     throw CriticalException(Status::elf_header__function_not_found);
 }
 
-std::vector<Disassebler::Line> ElfReader::get_function_code(NamedSymbol function)
+std::vector<Disassebler::Line> ElfReader::get_function_code(NamedSymbol function) const
 {
     if (!file.is_open())
     {
@@ -205,3 +206,9 @@ std::vector<Disassebler::Line> ElfReader::get_function_code(NamedSymbol function
 
     return Disassebler::disassemble_raw(code.data(), code.size(), function.value);
 }
+
+std::vector<Disassebler::Line> ElfReader::get_function_code_by_name(std::string name) const
+{
+    return get_function_code(get_function(name));
+}
+
