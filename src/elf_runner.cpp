@@ -13,7 +13,8 @@
 
 
 ElfRunner::ElfRunner(std::string file_name):
-    child_pid(run(file_name))
+    child_pid(run(file_name)),
+    _breakpoint()
 {}
 
 ElfRunner::~ElfRunner()
@@ -56,33 +57,33 @@ pid_t ElfRunner::run(std::string file_name)
 
 bool ElfRunner::get_to_address(uint64_t address)
 {
-    int child_status = 0;
-    struct user_regs_struct regs{};
+    // overwrite breakpoint code with interrupt
+    if (!_breakpoint.has_value()) { _breakpoint.emplace(address, child_pid); }
 
+    // run child until interupted
+    int child_status = 0;
+    if (waitpid(child_pid, &child_status, WNOHANG | WUNTRACED) == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
+    if (!WIFSTOPPED(child_status) or WSTOPSIG(child_status) != SIGTRAP) return false;
+
+    // resume regular flow
+    struct user_regs_struct regs{};
     errno = 0;
     if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
-    for (int counter = 0; counter < 10000 and regs.rip != address; counter++)
-    {
-        if (ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL) == -1) { throw CriticalException(Status::elf_runner__step_failed); }
-        if (wait(&child_status) == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
-        if (WIFEXITED(child_status) or WIFSIGNALED(child_status)) { throw CriticalException(Status::elf_runner__child_finished); }
-        errno = 0;
-        if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
-    }
+    regs.rip--;
+    if (ptrace(PTRACE_SETREGS, child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__poke_failed); }
+    _breakpoint.reset();
 
-    return regs.rip == address;
+    return true;
 }
 
-std::variant<ElfRunner::runtime_mapping, ElfRunner::current_address> ElfRunner::run_function(uint64_t address, uint64_t size)
+std::optional<ElfRunner::runtime_mapping> ElfRunner::run_function(uint64_t address, uint64_t size)
 {
-    struct user_regs_struct regs{};
     if (!get_to_address(address))
     {
-	errno = 0;
-	if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
-	return static_cast<current_address>(regs.rip);
+	return {};
     }
 
+    struct user_regs_struct regs{};
     runtime_mapping address_counter{};
     int child_status = 0;
 
@@ -102,3 +103,4 @@ std::variant<ElfRunner::runtime_mapping, ElfRunner::current_address> ElfRunner::
 
     return address_counter;
 }
+
