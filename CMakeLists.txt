@@ -6,7 +6,7 @@ set(CMAKE_CXX_COMPILER /usr/bin/g++-14)
 
 project(Debugger VERSION 1.0.0)
 
-SET(CMAKE_CXX_FLAGS "-Wall -Wextra -O3")
+SET(CMAKE_CXX_FLAGS "-Wall -Wextra -O3 -g")
 
 file(GLOB_RECURSE sources src/*.cpp)
 file(GLOB_RECURSE headers include/*.hpp)

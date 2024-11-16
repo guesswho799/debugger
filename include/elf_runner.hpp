@@ -1,15 +1,16 @@
 #pragma once
 
+#include "breakpoint_hook.hpp"
 #include <string>
 #include <map>
 #include <cstdint>
-#include <variant>
+#include <optional>
+
 
 class ElfRunner
 {
 public:
     using runtime_mapping = std::map<uint64_t, int>;
-    using current_address = uint64_t;
 
 public:
     explicit ElfRunner(std::string file_name);
@@ -20,7 +21,7 @@ public:
     ~ElfRunner();
 
 public:
-    std::variant<runtime_mapping, current_address> run_function(uint64_t address, uint64_t size);
+    std::optional<runtime_mapping> run_function(uint64_t address, uint64_t size);
 
 private:
     pid_t run(std::string file_name);
@@ -28,4 +29,6 @@ private:
     
 private:
     pid_t child_pid;
+    std::optional<BreakpointHook> _breakpoint;
 };
+

@@ -294,19 +294,17 @@ int main(int argc, char *argv[])
 	auto run_program_tab = ftxui::Renderer([&] { 
 	    CHECK_LOADED_ELF();
 	    const auto func = static_debugger.value().get_function(function_name);
-	    const std::variant<ElfRunner::runtime_mapping, ElfRunner::current_address> runtime_value = dynamic_debugger.value().run_function(func.value, func.size);
-	    if (std::holds_alternative<ElfRunner::current_address>(runtime_value))
+	    const std::optional<ElfRunner::runtime_mapping> runtime_value = dynamic_debugger.value().run_function(func.value, func.size);
+	    if (!runtime_value.has_value())
 	    {
 	        std::ostringstream function_address;
-	        function_address << "function address: 0x" << std::hex << std::to_string(func.value);
-	        std::ostringstream current_information;
-	        current_information << "current address: 0x" << std::hex << std::to_string(std::get<ElfRunner::current_address>(runtime_value));
+	        function_address << "breaking on " << function_name;
 		screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
-	        return ftxui::vbox({ftxui::text("Running program..."), ftxui::text(function_address.str()), ftxui::text(current_information.str())}) | ftxui::border | ftxui::center;
+	        return ftxui::vbox({ftxui::text("Running program..."), ftxui::text(function_address.str())}) | ftxui::border | ftxui::center;
 	    }
 	    else
 	    {
-	        disassembled_code = load_code_blocks(function_name, static_debugger.value(), std::get<ElfRunner::runtime_mapping>(runtime_value));
+	        disassembled_code = load_code_blocks(function_name, static_debugger.value(), runtime_value.value());
 		screen.PostEvent(ftxui::Event::Character('m'));
 		return ftxui::vbox({});
 	    }
