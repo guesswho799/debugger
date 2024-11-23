@@ -27,7 +27,7 @@ namespace Disassebler
     {
         std::vector<int> opcodes;
         std::string disassemble;
-        int address;
+        uint64_t address;
     };
 
     static int dis_fprintf(void *stream, const char *fmt, ...)

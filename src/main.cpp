@@ -274,6 +274,7 @@ int main(int argc, char *argv[])
 		    }
 	            if (event == ftxui::Event::Return)
 	            {
+			if (dynamic_debugger.has_value()) dynamic_debugger->reset();
 	                function_name = function_table_content[function_selector][0];
 	                disassembled_code = load_code_blocks(function_name, static_debugger.value());
 	                in_search_mode = false;
@@ -293,8 +294,14 @@ int main(int argc, char *argv[])
 	string_tab           = ftxui::Container::Horizontal({string_tab, scrollbar_y}) | ftxui::flex;
 	auto run_program_tab = ftxui::Renderer([&] { 
 	    CHECK_LOADED_ELF();
+	    if (dynamic_debugger.value().is_dead())
+	    {
+		 screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
+	         return ftxui::vbox({ftxui::text("program finished..."), ftxui::text("press m to view result...")}) | ftxui::border | ftxui::center;
+	    }
 	    const auto func = static_debugger.value().get_function(function_name);
-	    const std::optional<ElfRunner::runtime_mapping> runtime_value = dynamic_debugger.value().run_function(func.value, func.size);
+	    const auto calls = static_debugger.value().get_function_calls(function_name);
+	    const std::optional<ElfRunner::runtime_mapping> runtime_value = dynamic_debugger.value().run_function(func.value, func.size, calls);
 	    if (!runtime_value.has_value())
 	    {
 	        std::ostringstream function_address;
@@ -305,8 +312,8 @@ int main(int argc, char *argv[])
 	    else
 	    {
 	        disassembled_code = load_code_blocks(function_name, static_debugger.value(), runtime_value.value());
-		screen.PostEvent(ftxui::Event::Character('m'));
-		return ftxui::vbox({});
+		screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
+	        return ftxui::vbox({ftxui::text("Running program..."), ftxui::text("Function hit, press m to view result or stay for more coverage")}) | ftxui::border | ftxui::center;
 	    }
 	});
 	auto middle = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, run_program_tab}, &tab_selected);

@@ -212,3 +212,15 @@ std::vector<Disassebler::Line> ElfReader::get_function_code_by_name(std::string 
     return get_function_code(get_function(name));
 }
 
+std::vector<uint64_t> ElfReader::get_function_calls(std::string name) const
+{
+    std::vector<Disassebler::Line> lines = get_function_code_by_name(name);
+    std::vector<uint64_t> calls;
+    constexpr uint64_t CALL_OPCODE = 0xE8;
+    const uint64_t amount_of_lines = lines.end() - lines.begin();
+    for (int i = 0; i < amount_of_lines; i++)
+    {
+	if (lines[i].opcodes[0] == CALL_OPCODE and i < amount_of_lines-1) calls.push_back(lines[i+1].address);
+    }
+    return calls;
+}
