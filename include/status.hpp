@@ -18,6 +18,8 @@ enum class Status: int
     elf_runner__poke_failed,
     elf_runner__step_failed,
     elf_runner__cont_failed,
+    disassembler__open_failed,
+    disassembler__parse_failed,
 };
 
 

@@ -4,6 +4,7 @@
 #include <fstream>
 #include <vector>
 
+#include "disassembler.hpp"
 #include "elf_header.hpp"
 
 
@@ -43,8 +44,8 @@ public:
     std::vector<std::string> get_strings() const;
     std::vector<NamedSymbol> get_functions() const;
     NamedSymbol get_function(std::string name) const;
-    std::vector<Disassebler::Line> get_function_code(NamedSymbol function) const;
-    std::vector<Disassebler::Line> get_function_code_by_name(std::string name) const;
+    std::vector<Disassembler::Line> get_function_code(NamedSymbol function) const;
+    std::vector<Disassembler::Line> get_function_code_by_name(std::string name) const;
     std::vector<uint64_t> get_function_calls(std::string name) const;
 
 private:
