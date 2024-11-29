@@ -17,17 +17,22 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI.git
   GIT_TAG v5.0.0
 )
-FetchContent_MakeAvailable(FTXUI)
+FetchContent_Declare(
+  CAPSTONE
+  GIT_REPOSITORY https://github.com/capstone-engine/capstone.git
+  GIT_TAG 5.0.3
+)
+FetchContent_MakeAvailable(FTXUI CAPSTONE)
 
 add_executable(${PROJECT_NAME} ${sources})
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION)
 
 target_link_libraries(${PROJECT_NAME}
-	PRIVATE /usr/lib/x86_64-linux-gnu/libopcodes.so
 	PRIVATE ftxui::screen
 	PRIVATE ftxui::dom
 	PRIVATE ftxui::component
+	PRIVATE capstone
 )
 
 include_directories(include)
