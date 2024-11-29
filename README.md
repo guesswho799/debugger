@@ -4,13 +4,13 @@
 Debugger is a combination of a static and dynamic debugger for vim lovers
 ## Features
 ### Loading Elf binaries and viewing specific functions
-![image](https://github.com/user-attachments/assets/b9ed3cb4-a13f-4513-94e4-d05990bc6566)
+![image](https://github.com/user-attachments/assets/deef2d3f-3ba1-49fe-9dbd-ad3fffd3f043)
 
 ### Viewing all avaliable symbols
-![image](https://github.com/user-attachments/assets/45acc530-4e45-43d2-a78c-ab1cba173c95)
+![image](https://github.com/user-attachments/assets/cd470a33-a297-475d-b076-192a751c98fb)
 
 ### Running the binary and 'coloring' in flows
-![image](https://github.com/user-attachments/assets/1f9dbfce-132e-41de-84db-1754d8b6ad93)
+![image](https://github.com/user-attachments/assets/9abbd81b-7445-4238-8759-e5268e3755a7)
 
 ## How to build test binary
 ```console
