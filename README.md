@@ -14,7 +14,7 @@ Debugger is a combination of a static and dynamic debugger for vim lovers
 
 ## How to build test binary
 ```console
-cd test && g++ -no-pie -g -O0 main.cpp -oprogram
+g++ -no-pie main.cpp -oprogram
 ```
 ## How to build debugger
 ```console
