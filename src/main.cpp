@@ -15,81 +15,13 @@
 #include <ftxui/util/ref.hpp>
 
 #include "disassembler.hpp"
+#include "loader.hpp"
 #include "elf_reader.hpp"
 #include "elf_runner.hpp"
 #include "status.hpp"
 
 #define CHECK_LOADED_ELF() if (!static_debugger.has_value() or !dynamic_debugger.has_value()) return ftxui::text("no file loaded..")
 
-
-ftxui::Element load_code_blocks(const std::string& function_name, const ElfReader& static_debugger, std::optional<ElfRunner::runtime_mapping> runtime_data={})
-{
-    auto assembly = static_debugger.get_function_code_by_name(function_name);
-    auto disassembled_code = ftxui::vbox({ftxui::bold(ftxui::text(function_name)), ftxui::separator()});
-    for (const auto& item: assembly)
-    {
-        std::ostringstream address;
-        address << std::hex << item.address;
-        std::ostringstream opcodes_stream;
-        auto opcodes_as_box = ftxui::vbox({});
-        const int opcodes_per_line = 3;
-        for (unsigned int i = 0; i < item.opcodes.size(); i++)
-        {
-	    if (i % opcodes_per_line == 0 && i != 0)
-	    {
-	        opcodes_as_box = ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
-	        opcodes_stream.str("");
-	        opcodes_stream.clear();
-	    }
-	    if (item.opcodes[i] < 16) { opcodes_stream << '0'; }
-	    opcodes_stream << std::hex << item.opcodes[i] << ' ';
-	}
-	if ((item.opcodes.end() - item.opcodes.begin()) % opcodes_per_line != 0)
-	{
-	    for (unsigned int i = 0; i < (opcodes_per_line - ((item.opcodes.end() - item.opcodes.begin()) % opcodes_per_line)) * opcodes_per_line; i++)
-	    {
-	        opcodes_stream << ' ';
-	    }
-        }
-        opcodes_as_box = ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
-	auto content = ftxui::hbox({
-	    ftxui::text("0x"),
-	    ftxui::text(address.str()),
-	    ftxui::separator(),
-	    opcodes_as_box,
-	    ftxui::separator(),
-	    ftxui::text(item.disassemble)
-    	});
-	if (runtime_data.has_value() and runtime_data.value()[item.address] != 0)
-	{
-	    content |= ftxui::bgcolor(ftxui::Color::Green);
-	}
-
-        disassembled_code = ftxui::vbox(disassembled_code, content);
-    }
-    return disassembled_code;
-}
-
-std::vector<std::vector<std::string>> load_function_table(const ElfReader& static_debugger)
-{
-    std::vector<std::vector<std::string>> function_table_info;
-    for (const auto& item: static_debugger.get_functions())
-    {
-        function_table_info.push_back({item.name, std::to_string(item.value), std::to_string(item.size)});
-    }
-    return function_table_info;
-}
-
-ftxui::Element load_strings(const ElfReader& static_debugger)
-{
-    auto string_tab_content = ftxui::vbox({ftxui::text("strings"), ftxui::separator()});
-    std::vector<std::string> strings = static_debugger.get_strings();
-    for (const auto& item: strings)
-    {
-         string_tab_content = ftxui::vbox({string_tab_content, ftxui::text(item)});
-    }
-    return string_tab_content;
-}
 
 
 int main(int argc, char *argv[])
@@ -112,7 +44,7 @@ int main(int argc, char *argv[])
 	{
             static_debugger = std::optional<ElfReader>(binary_path);
             dynamic_debugger = std::optional<ElfRunner>(binary_path);
-	    disassembled_code = load_code_blocks(function_name, static_debugger.value());
+	    disassembled_code = Loader::load_code_blocks(function_name, static_debugger.value());
 	}
 
 	auto screen = ftxui::ScreenInteractive::Fullscreen();
@@ -206,7 +138,7 @@ int main(int argc, char *argv[])
 	                binary_path = files_as_strings[open_file_selector];
 	                static_debugger = std::optional<ElfReader>(binary_path);
 	                dynamic_debugger = std::optional<ElfRunner>(binary_path);
-	                disassembled_code = load_code_blocks(function_name, static_debugger.value());
+	                disassembled_code = Loader::load_code_blocks(function_name, static_debugger.value());
 	                in_search_mode = false;
 	                file_path = "";
 	                screen.PostEvent(ftxui::Event::Character('m'));
@@ -222,10 +154,10 @@ int main(int argc, char *argv[])
 	auto function_tab    = ftxui::Renderer(function_input, [&] {
 	    CHECK_LOADED_ELF();
 	    if (function_input_content.empty() or !in_search_mode)
-	    { function_table_content = load_function_table(static_debugger.value()); }
+	    { function_table_content = Loader::load_function_table(static_debugger.value()); }
 	    else
 	    {
-	        function_table_content = load_function_table(static_debugger.value()) |
+	        function_table_content = Loader::load_function_table(static_debugger.value()) |
 		    std::views::filter([&](const auto& item) { return item[0].find(function_input_content) != std::string::npos; }) |
 		    std::ranges::to<std::vector>();
 	    }
@@ -276,7 +208,7 @@ int main(int argc, char *argv[])
 	            {
 			if (dynamic_debugger.has_value()) dynamic_debugger->reset();
 	                function_name = function_table_content[function_selector][0];
-	                disassembled_code = load_code_blocks(function_name, static_debugger.value());
+	                disassembled_code = Loader::load_code_blocks(function_name, static_debugger.value());
 	                in_search_mode = false;
 	                function_input_content = "";
 			function_selector = 0;
@@ -289,7 +221,7 @@ int main(int argc, char *argv[])
 	function_tab         = ftxui::Container::Vertical({ftxui::Container::Horizontal({function_tab, scrollbar_y}) | ftxui::flex, scrollbar_x});
 	auto string_tab      = ftxui::Renderer([&] {
 	    CHECK_LOADED_ELF();
-	    return load_strings(static_debugger.value()) | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex;
+	    return Loader::load_strings(static_debugger.value()) | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex;
 	});
 	string_tab           = ftxui::Container::Horizontal({string_tab, scrollbar_y}) | ftxui::flex;
 	auto run_program_tab = ftxui::Renderer([&] { 
@@ -311,7 +243,7 @@ int main(int argc, char *argv[])
 	    }
 	    else
 	    {
-	        disassembled_code = load_code_blocks(function_name, static_debugger.value(), runtime_value.value());
+	        disassembled_code = Loader::load_code_blocks(function_name, static_debugger.value(), runtime_value.value());
 		screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
 	        return ftxui::vbox({ftxui::text("Running program..."), ftxui::text("Function hit, press m to view result or stay for more coverage")}) | ftxui::border | ftxui::center;
 	    }

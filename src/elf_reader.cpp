@@ -5,9 +5,8 @@
 #include <ranges>
 #include <ctype.h>
 
-#include "disassembler.hpp"
-#include "elf_reader.hpp"
 #include "status.hpp"
+#include "elf_reader.hpp"
 #include "elf_header.hpp"
 
 
@@ -190,7 +189,7 @@ NamedSymbol ElfReader::get_function(std::string name) const
     throw CriticalException(Status::elf_header__function_not_found);
 }
 
-std::vector<Disassebler::Line> ElfReader::get_function_code(NamedSymbol function) const
+std::vector<Disassembler::Line> ElfReader::get_function_code(NamedSymbol function) const
 {
     if (!file.is_open())
     {
@@ -204,17 +203,17 @@ std::vector<Disassebler::Line> ElfReader::get_function_code(NamedSymbol function
     file.read(reinterpret_cast<char*>(buffer), sizeof buffer);
     std::vector<uint8_t> code{buffer, buffer+function.size};
 
-    return Disassebler::disassemble_raw(code.data(), code.size(), function.value);
+    return Disassembler::disassemble_raw(code.data(), code.size(), function.value);
 }
 
-std::vector<Disassebler::Line> ElfReader::get_function_code_by_name(std::string name) const
+std::vector<Disassembler::Line> ElfReader::get_function_code_by_name(std::string name) const
 {
     return get_function_code(get_function(name));
 }
 
 std::vector<uint64_t> ElfReader::get_function_calls(std::string name) const
 {
-    std::vector<Disassebler::Line> lines = get_function_code_by_name(name);
+    std::vector<Disassembler::Line> lines = get_function_code_by_name(name);
     std::vector<uint64_t> calls;
     constexpr uint64_t CALL_OPCODE = 0xE8;
     const uint64_t amount_of_lines = lines.end() - lines.begin();
