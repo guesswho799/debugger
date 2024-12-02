@@ -7,7 +7,6 @@
 
 #include "status.hpp"
 #include "elf_reader.hpp"
-#include "elf_header.hpp"
 
 
 ElfReader::ElfReader(std::string file_name):
@@ -203,7 +202,8 @@ std::vector<Disassembler::Line> ElfReader::get_function_code(NamedSymbol functio
     file.read(reinterpret_cast<char*>(buffer), sizeof buffer);
     std::vector<uint8_t> code{buffer, buffer+function.size};
 
-    return Disassembler::disassemble_raw(code.data(), code.size(), function.value);
+    Disassembler disassembler{};
+    return disassembler.disassemble(code.data(), code.size(), function.value);
 }
 
 std::vector<Disassembler::Line> ElfReader::get_function_code_by_name(std::string name) const

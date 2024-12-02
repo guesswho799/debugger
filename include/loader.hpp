@@ -36,7 +36,7 @@ namespace Loader
         return ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
     }
 
-    std::vector<ftxui::Element> load_code_lines(const std::string& function_name, const std::vector<Disassembler::Line>& assembly, std::optional<ElfRunner::runtime_mapping> runtime_data={})
+    std::vector<ftxui::Element> load_code_lines(const std::vector<Disassembler::Line>& assembly, std::optional<ElfRunner::runtime_mapping> runtime_data={})
     {
        std::vector<ftxui::Element> lines;
        for (const auto& line: assembly)
@@ -64,15 +64,17 @@ namespace Loader
     ftxui::Element load_code_blocks(const std::string& function_name, const ElfReader& static_debugger, std::optional<ElfRunner::runtime_mapping> runtime_data={})
     {
        std::vector<Disassembler::Line> assembly = static_debugger.get_function_code_by_name(function_name);
-       std::vector<ftxui::Element> lines        = load_code_lines(function_name, assembly, runtime_data);
+       std::vector<ftxui::Element> lines        = load_code_lines(assembly, runtime_data);
 
        auto block = ftxui::vbox({ftxui::bold(ftxui::text(function_name)), ftxui::separator()});
 
        for (std::tuple<Disassembler::Line&, ftxui::Element&> item: std::views::zip(assembly, lines))
        {
 	   
-	   if (std::get<0>(item).is_jump) block = ftxui::vbox(block, std::get<1>(item), ftxui::separator());
-	   else block = ftxui::vbox(block, std::get<1>(item));
+	   // TODO:: make this an actual call graph
+	   // if (std::get<0>(item).is_jump) block = ftxui::vbox(block, std::get<1>(item), ftxui::separator());
+	   // else block = ftxui::vbox(block, std::get<1>(item));
+	   block = ftxui::vbox(block, std::get<1>(item));
        }
        return block;
     }
