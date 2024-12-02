@@ -14,7 +14,6 @@
 #include <ftxui/dom/table.hpp>
 #include <ftxui/util/ref.hpp>
 
-#include "disassembler.hpp"
 #include "loader.hpp"
 #include "elf_reader.hpp"
 #include "elf_runner.hpp"
