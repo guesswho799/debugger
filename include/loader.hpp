@@ -99,4 +99,18 @@ namespace Loader
         }
         return string_tab_content;
     }
+    
+    ftxui::Element load_functions_arguments(const std::optional<ElfRunner::runtime_arguments> runtime_value)
+    {
+	auto functions = ftxui::vbox({});
+	if (!runtime_value.has_value()) return functions | ftxui::border | ftxui::center;
+	
+	for (const auto& [function_name, argument]: runtime_value.value())
+	{
+	    std::ostringstream functions_info;
+	    functions_info << function_name << "(" << argument << ") ";
+	    functions = ftxui::vbox({functions, ftxui::text(functions_info.str())});
+	}
+	return functions | ftxui::border | ftxui::center;
+    }
 }

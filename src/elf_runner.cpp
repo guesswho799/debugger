@@ -1,4 +1,5 @@
 #include "elf_runner.hpp"
+#include "ptrace_utils.hpp"
 #include "status.hpp"
 
 #include <fcntl.h>
@@ -17,6 +18,7 @@ ElfRunner::ElfRunner(std::string file_name):
     _child_pid(run(file_name)),
     _breakpoints(),
     _runtime_mapping(),
+    _runtime_arguments(),
     _is_dead(false)
 {}
 
@@ -68,36 +70,96 @@ pid_t ElfRunner::run(std::string file_name)
     return pid;
 }
 
-bool ElfRunner::_non_blocking_get_to_address(uint64_t address, int child_status, std::vector<uint64_t> calls)
+bool ElfRunner::_non_blocking_get_to_breakpoints(const std::vector<NamedSymbol>& functions, int child_status)
 {
     // overwrite breakpoint code with interrupt
-    if (_breakpoints.empty())
+    if (_breakpoints.empty() and _runtime_arguments.empty())
     {
-        for (const auto& call_site: calls)
+        for (const auto& function: functions)
         {
-            _breakpoints.emplace_back(call_site, _child_pid);
+            _breakpoints.emplace_back(function.value, _child_pid);
         }
-	_breakpoints.emplace_back(address, _child_pid);
-        if (ptrace(PTRACE_CONT, _child_pid, NULL, NULL) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__cont_failed); }
+	Ptrace::cont(_child_pid);
     }
 
-    // run child until interupted
-    auto is_hit = [&](BreakpointHook breakpoint){ return breakpoint.is_hit(child_status); };
+    // check if child is interupted
+    const auto is_hit = [&](BreakpointHook breakpoint){ return breakpoint.is_hit(child_status); };
     const auto iterator = std::find_if(_breakpoints.begin(), _breakpoints.end(), is_hit);
     if (iterator == _breakpoints.end()) return false;
+    _log_function_arguments(functions, iterator->get_address());
     _breakpoints.erase(iterator);
 
-    // resume regular flow
-    struct user_regs_struct regs{};
-    errno = 0;
-    if (ptrace(PTRACE_GETREGS, _child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
+    // resume child regular flow
+    struct user_regs_struct regs = Ptrace::get_regs(_child_pid);
     regs.rip--;
-    if (ptrace(PTRACE_SETREGS, _child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__poke_failed); }
+    Ptrace::set_regs(_child_pid, regs);
 
-    _step();
-    _breakpoints.emplace_back(regs.rip, _child_pid);
+    Ptrace::cont(_child_pid);
 
     return true;
+}
+
+std::optional<ElfRunner::runtime_mapping> ElfRunner::run_function(uint64_t address, uint64_t size, std::vector<uint64_t> calls)
+{
+    int child_status = 0;
+    int status = waitpid(_child_pid, &child_status, WNOHANG | WUNTRACED);
+    if (status == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
+    if (status != 0) { _update_is_dead(child_status); }
+
+  //if (is_dead() or !_non_blocking_get_to_address(address, child_status, calls))
+  //{
+  //    return _runtime_mapping;
+  //}
+
+    struct user_regs_struct regs = Ptrace::get_regs(_child_pid);
+    while (regs.rip >= address and regs.rip <= address + size)
+    {
+	_log_step();
+        regs = Ptrace::get_regs(_child_pid);
+    }
+    Ptrace::cont(_child_pid);
+
+    return _runtime_mapping;
+}
+
+std::optional<ElfRunner::runtime_arguments> ElfRunner::run_functions(const std::vector<NamedSymbol>& functions)
+{
+    int child_status = 0;
+    int status = waitpid(_child_pid, &child_status, WNOHANG | WUNTRACED);
+    if (status == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
+    if (status != 0) { _update_is_dead(child_status); }
+
+    if (is_dead() or !_non_blocking_get_to_breakpoints(functions, child_status))
+    {
+	return _runtime_arguments;
+    }
+
+    struct user_regs_struct regs = Ptrace::get_regs(_child_pid);
+    Ptrace::cont(_child_pid);
+
+    return _runtime_arguments;
+}
+
+void ElfRunner::_log_step()
+{
+    struct user_regs_struct regs = Ptrace::get_regs(_child_pid);
+    errno = 0;
+    _runtime_mapping[regs.rip]++;
+
+    int child_status = 0;
+    Ptrace::single_step(_child_pid);
+    if (wait(&child_status) == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
+    if (WIFEXITED(child_status) or WIFSIGNALED(child_status)) { throw CriticalException(Status::elf_runner__child_finished); }
+}
+
+void ElfRunner::_log_function_arguments(const std::vector<NamedSymbol>& functions, address_t function_address)
+{
+    const auto get_function_by_address = [&](NamedSymbol function){ return function.value == function_address; };
+    const auto iterator = std::find_if(functions.begin(), functions.end(), get_function_by_address);
+    if (iterator == functions.end()) throw CriticalException(Status::elf_runner__unable_to_find_function);
+
+    struct user_regs_struct regs = Ptrace::get_regs(_child_pid);
+    _runtime_arguments[iterator->name] = regs.rax;
 }
 
 void ElfRunner::_update_is_dead(int child_status)
@@ -109,41 +171,9 @@ void ElfRunner::_update_is_dead(int child_status)
 
 bool ElfRunner::is_dead() { return _is_dead; }
 
-std::optional<ElfRunner::runtime_mapping> ElfRunner::run_function(uint64_t address, uint64_t size, std::vector<uint64_t> calls)
+
+std::optional<ElfRunner::runtime_arguments> ElfRunner::get_runtime_arguments() const
 {
-    int child_status = 0;
-    int status = waitpid(_child_pid, &child_status, WNOHANG | WUNTRACED);
-    if (status == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
-    if (status != 0) { _update_is_dead(child_status); }
-
-    if (is_dead() or !_non_blocking_get_to_address(address, child_status, calls))
-    {
-	return _runtime_mapping;
-    }
-
-    struct user_regs_struct regs{};
-    if (ptrace(PTRACE_GETREGS, _child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
-    while (regs.rip >= address and regs.rip <= address + size)
-    {
-	_step();
-        if (ptrace(PTRACE_GETREGS, _child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
-    }
-    errno = 0;
-    if (ptrace(PTRACE_CONT, _child_pid, NULL, NULL) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__cont_failed); }
-
-    return _runtime_mapping;
-}
-
-void ElfRunner::_step()
-{
-    struct user_regs_struct regs{};
-    errno = 0;
-    if (ptrace(PTRACE_GETREGS, _child_pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::elf_runner__peek_failed); }
-    _runtime_mapping[regs.rip]++;
-
-    int child_status = 0;
-    if (ptrace(PTRACE_SINGLESTEP, _child_pid, NULL, NULL) == -1) { throw CriticalException(Status::elf_runner__step_failed); }
-    if (wait(&child_status) == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
-    if (WIFEXITED(child_status) or WIFSIGNALED(child_status)) { throw CriticalException(Status::elf_runner__child_finished); }
+    return _runtime_arguments;
 }
 

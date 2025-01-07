@@ -3,6 +3,13 @@
 #include <string>
 #include <iostream>
 
+#define BEST_EFFORT(code) \
+	try               \
+	{                 \
+	    code;         \
+	}                 \
+	catch(...)        \
+	{}
 
 enum class Status: int
 {
@@ -14,12 +21,15 @@ enum class Status: int
     elf_runner__wait_failed,
     elf_runner__child_died,
     elf_runner__child_finished,
-    elf_runner__peek_failed,
-    elf_runner__poke_failed,
     elf_runner__step_failed,
-    elf_runner__cont_failed,
-    disassemble__open_failed,
-    disassemble__parse_failed,
+    ptrace__peek_regs_failed,
+    ptrace__poke_regs_failed,
+    ptrace__peek_code_failed,
+    ptrace__poke_code_failed,
+    ptrace__cont_failed,
+    elf_runner__unable_to_find_function,
+    disassembler__open_failed,
+    disassembler__parse_failed,
 };
 
 

@@ -178,14 +178,24 @@ std::vector<NamedSymbol> ElfReader::get_functions() const
     return functions;
 }
 
+std::vector<NamedSymbol> ElfReader::get_implemented_functions() const
+{
+    std::vector<NamedSymbol> functions{};
+    auto function_filter = [&](NamedSymbol symbol){return symbol.type & SymbolType::function and symbol.value != 0; };
+    for(const auto& symbol : _static_symbols | std::views::filter(function_filter))
+    {
+        functions.push_back(symbol);
+    }
+    return functions;
+}
+
 NamedSymbol ElfReader::get_function(std::string name) const
 {
     auto function_filter = [&](NamedSymbol symbol){return symbol.type & SymbolType::function && symbol.name == name; };
-    for(const auto& symbol : _static_symbols | std::views::filter(function_filter))
-    {
-        return symbol;
-    }
-    throw CriticalException(Status::elf_header__function_not_found);
+    const auto iterator = std::find_if(_static_symbols.begin(), _static_symbols.end(), function_filter);
+    if (iterator == _static_symbols.end()) throw CriticalException(Status::elf_header__function_not_found);
+
+    return *iterator;
 }
 
 std::vector<Disassembler::Line> ElfReader::get_function_code(NamedSymbol function) const
@@ -217,7 +227,7 @@ std::vector<uint64_t> ElfReader::get_function_calls(std::string name) const
     std::vector<uint64_t> calls;
     constexpr uint64_t CALL_OPCODE = 0xE8;
     const uint64_t amount_of_lines = lines.end() - lines.begin();
-    for (int i = 0; i < amount_of_lines; i++)
+    for (uint64_t i = 0; i < amount_of_lines; i++)
     {
 	if (lines[i].opcodes[0] == CALL_OPCODE and i < amount_of_lines-1) calls.push_back(lines[i+1].address);
     }
