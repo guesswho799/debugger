@@ -12,9 +12,7 @@ public:
 
 public:
     bool is_hit(int child_status) const;
-
-private:
-    uint64_t _get_function_code(uint64_t address, pid_t child_pid);
+    uint64_t get_address() const;
 
 private:
     uint64_t _address;

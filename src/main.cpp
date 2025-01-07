@@ -227,25 +227,13 @@ int main(int argc, char *argv[])
 	    CHECK_LOADED_ELF();
 	    if (dynamic_debugger.value().is_dead())
 	    {
-		 screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
-	         return ftxui::vbox({ftxui::text("program finished..."), ftxui::text("press m to view result...")}) | ftxui::border | ftxui::center;
+	    	const auto runtime_value = dynamic_debugger.value().get_runtime_arguments();
+	        return ftxui::vbox({ftxui::text("Program finished..."), Loader::load_functions_arguments(runtime_value)}) | ftxui::border | ftxui::center;
 	    }
-	    const auto func = static_debugger.value().get_function(function_name);
-	    const auto calls = static_debugger.value().get_function_calls(function_name);
-	    const std::optional<ElfRunner::runtime_mapping> runtime_value = dynamic_debugger.value().run_function(func.value, func.size, calls);
-	    if (!runtime_value.has_value())
-	    {
-	        std::ostringstream function_address;
-	        function_address << "breaking on " << function_name;
-		screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
-	        return ftxui::vbox({ftxui::text("Running program..."), ftxui::text(function_address.str())}) | ftxui::border | ftxui::center;
-	    }
-	    else
-	    {
-	        disassembled_code = Loader::load_code_blocks(function_name, static_debugger.value(), runtime_value.value());
-		screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
-	        return ftxui::vbox({ftxui::text("Running program..."), ftxui::text("Function hit, press m to view result or stay for more coverage")}) | ftxui::border | ftxui::center;
-	    }
+	    screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
+	    const auto functions = static_debugger.value().get_implemented_functions();
+	    const auto runtime_value = dynamic_debugger.value().run_functions(functions);
+	    return ftxui::vbox({ftxui::text("Running process..."), Loader::load_functions_arguments(runtime_value)}) | ftxui::border | ftxui::center;
 	});
 	auto middle = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, run_program_tab}, &tab_selected);
 

@@ -43,6 +43,7 @@ public:
     std::vector<NamedSymbol> get_symbols() const;
     std::vector<std::string> get_strings() const;
     std::vector<NamedSymbol> get_functions() const;
+    std::vector<NamedSymbol> get_implemented_functions() const;
     NamedSymbol get_function(std::string name) const;
     std::vector<Disassembler::Line> get_function_code(NamedSymbol function) const;
     std::vector<Disassembler::Line> get_function_code_by_name(std::string name) const;
