@@ -12,6 +12,8 @@ public:
 
 public:
     bool is_hit(int child_status) const;
+    void hook();
+    void unhook();
     uint64_t get_address() const;
 
 private:

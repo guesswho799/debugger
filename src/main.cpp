@@ -232,8 +232,8 @@ int main(int argc, char *argv[])
 	    }
 	    screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
 	    const auto functions = static_debugger.value().get_implemented_functions();
-	    const auto runtime_value = dynamic_debugger.value().run_functions(functions);
-	    return ftxui::vbox({ftxui::text("Running process..."), Loader::load_functions_arguments(runtime_value)}) | ftxui::border | ftxui::center;
+	    dynamic_debugger.value().run_functions(functions);
+	    return ftxui::vbox({ftxui::text("Running process..."), Loader::load_functions_arguments(dynamic_debugger.value().get_runtime_arguments())}) | ftxui::border | ftxui::center;
 	});
 	auto middle = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, run_program_tab}, &tab_selected);
 

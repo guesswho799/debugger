@@ -27,8 +27,7 @@ public:
     ~ElfRunner();
 
 public:
-    std::optional<runtime_mapping> run_function (uint64_t address, uint64_t size, std::vector<uint64_t> calls);
-    std::optional<runtime_arguments> run_functions(const std::vector<NamedSymbol>& functions);
+    void run_functions(const std::vector<NamedSymbol>& functions);
     std::optional<runtime_arguments> get_runtime_arguments() const;
     void reset();
     bool is_dead();
@@ -36,7 +35,6 @@ public:
 private:
     pid_t run(std::string file_name);
     void _update_is_dead(int child_status);
-    bool _non_blocking_get_to_breakpoints(const std::vector<NamedSymbol>& functions, int child_status);
     void _log_step();
     void _log_function_arguments(const std::vector<NamedSymbol>& functions, address_t function_address);
     
