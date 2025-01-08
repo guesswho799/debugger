@@ -223,21 +223,21 @@ int main(int argc, char *argv[])
 	    return Loader::load_strings(static_debugger.value()) | ftxui::focusPositionRelative(scroll_x, scroll_y) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex;
 	});
 	string_tab           = ftxui::Container::Horizontal({string_tab, scrollbar_y}) | ftxui::flex;
-	auto run_program_tab = ftxui::Renderer([&] { 
+	auto trace_functions_tab = ftxui::Renderer([&] { 
 	    CHECK_LOADED_ELF();
 	    if (dynamic_debugger.value().is_dead())
 	    {
 	    	const auto runtime_value = dynamic_debugger.value().get_runtime_arguments();
-	        return ftxui::vbox({ftxui::text("Program finished..."), Loader::load_functions_arguments(runtime_value)}) | ftxui::border | ftxui::center;
+	        return ftxui::vbox({ftxui::text("Program finished"), Loader::load_functions_arguments(runtime_value)}) | ftxui::border | ftxui::center;
 	    }
 	    screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
 	    const auto functions = static_debugger.value().get_implemented_functions();
 	    dynamic_debugger.value().run_functions(functions);
 	    return ftxui::vbox({ftxui::text("Running process..."), Loader::load_functions_arguments(dynamic_debugger.value().get_runtime_arguments())}) | ftxui::border | ftxui::center;
 	});
-	auto middle = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, run_program_tab}, &tab_selected);
+	auto middle = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, trace_functions_tab}, &tab_selected);
 
-	std::vector<std::string> tab_values = {"Main", "Open file", "Functions", "Strings", "Debug function", "Quit"};
+	std::vector<std::string> tab_values = {"Main", "Open file", "Functions", "Strings", "Trace all functions", "Quit"};
 	auto option = ftxui::MenuOption::HorizontalAnimated();
 	option.elements_infix = [] { return ftxui::text(" | "); };
 	option.entries_option.transform = [](const ftxui::EntryState& state) {
@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
 		{
 	            tab_selected = 3;
 	    	}
-		else if (event == ftxui::Event::Character('d'))
+		else if (event == ftxui::Event::Character('t'))
 		{
 	            tab_selected = 4;
 	    	}
