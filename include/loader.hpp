@@ -108,7 +108,7 @@ namespace Loader
 	for (const auto& [function_name, argument]: runtime_value.value())
 	{
 	    std::ostringstream functions_info;
-	    functions_info << function_name << "(" << argument << ") ";
+	    functions_info << function_name << "(" << std::get<0>(argument) << ", " << std::get<1>(argument) << ", " << std::get<2>(argument) << ") ";
 	    functions = ftxui::vbox({functions, ftxui::text(functions_info.str())});
 	}
 	return functions | ftxui::border | ftxui::center;

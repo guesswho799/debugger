@@ -40,12 +40,8 @@ void ElfRunner::reset()
 
 pid_t ElfRunner::run(std::string file_name)
 {
-    int child_status = 0;
-    pid_t pid = fork();
-    if (pid == -1)
-    {
-        throw CriticalException(Status::elf_runner__fork_failed);
-    }
+    const pid_t pid = fork();
+    if (pid == -1) throw CriticalException(Status::elf_runner__fork_failed);
     
     // child
     if (pid == 0)
@@ -68,11 +64,10 @@ void ElfRunner::run_functions(const std::vector<NamedSymbol>& functions)
     if (status == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
     if (status != 0) { _update_is_dead(child_status); }
     if (is_dead() or !WIFSTOPPED(child_status)) return;
+
     
     if (_breakpoints.empty())
     {
-	// must reserve to avoid vector reallocations
-	_breakpoints.reserve(functions.size());
         for (const auto& function: functions)
         {
             _breakpoints.emplace_back(function.value, _child_pid);
@@ -119,7 +114,7 @@ void ElfRunner::_log_function_arguments(const std::vector<NamedSymbol>& function
     if (iterator == functions.end()) throw CriticalException(Status::elf_runner__unable_to_find_function);
 
     struct user_regs_struct regs = Ptrace::get_regs(_child_pid);
-    _runtime_arguments[iterator->name] = regs.rax;
+    _runtime_arguments[iterator->name] = {regs.rdi, regs.rsi, regs.rdx};
 }
 
 void ElfRunner::_update_is_dead(int child_status)
