@@ -12,7 +12,7 @@ Debugger is a combination of a static and dynamic debugger for vim lovers
 ### Running the binary and 'coloring' in flows
 ![image](https://github.com/user-attachments/assets/bf36aebd-1057-4cd4-9726-399d8ede6792)
 
-### Or view every function ran including runtime argumets
+### Or viewing every function that ran including runtime argumets
 ![image](https://github.com/user-attachments/assets/3ca83d21-9d83-4f3c-8582-fd50ad800019)
 
 ## How to build test binary
