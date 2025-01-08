@@ -28,9 +28,12 @@ public:
 
 public:
     void run_functions(const std::vector<NamedSymbol>& functions);
-    std::optional<runtime_arguments> get_runtime_arguments() const;
+    void run_function(const NamedSymbol& function, const std::vector<address_t>& calls);
     void reset();
-    bool is_dead();
+
+    bool is_dead() const;
+    runtime_arguments get_runtime_arguments() const;
+    runtime_mapping get_runtime_mapping() const;
 
 private:
     pid_t run(std::string file_name);

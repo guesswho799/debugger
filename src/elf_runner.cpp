@@ -32,6 +32,7 @@ ElfRunner::~ElfRunner()
 void ElfRunner::reset()
 {
     _runtime_mapping = {};
+    _runtime_arguments = {};
     _breakpoints.clear();
     kill(_child_pid, SIGKILL);
     wait(NULL);
@@ -95,6 +96,45 @@ void ElfRunner::run_functions(const std::vector<NamedSymbol>& functions)
     }
 }
 
+void ElfRunner::run_function(const NamedSymbol& function, const std::vector<address_t>& calls)
+{
+    int child_status = 0;
+    int status = waitpid(_child_pid, &child_status, WNOHANG | WUNTRACED);
+    if (status == -1) { throw CriticalException(Status::elf_runner__wait_failed); }
+    if (status != 0) { _update_is_dead(child_status); }
+    if (is_dead() or !WIFSTOPPED(child_status)) return;
+
+    if (_breakpoints.empty())
+    {
+        _breakpoints.emplace_back(function.value, _child_pid);
+        for (const auto& call: calls)
+        {
+            _breakpoints.emplace_back(call, _child_pid);
+        }
+	Ptrace::cont(_child_pid);
+    }
+    else
+    {
+        // check if breakpoint is hit
+        const auto breakpoint = std::find_if(_breakpoints.begin(), _breakpoints.end(),
+            [&](const BreakpointHook& breakpoint){ return breakpoint.is_hit(child_status); });
+        if (breakpoint == _breakpoints.end()) return;
+
+        // resume child regular flow
+        struct user_regs_struct regs = Ptrace::get_regs(_child_pid);
+        regs.rip--;
+        Ptrace::set_regs(_child_pid, regs);
+        breakpoint->unhook();
+	while (regs.rip >= function.value and regs.rip <= function.value + function.size)
+	{
+            _log_step();
+            regs = Ptrace::get_regs(_child_pid);
+	}
+        breakpoint->hook();
+        Ptrace::cont(_child_pid);
+    }
+}
+
 void ElfRunner::_log_step()
 {
     struct user_regs_struct regs = Ptrace::get_regs(_child_pid);
@@ -124,11 +164,19 @@ void ElfRunner::_update_is_dead(int child_status)
     _is_dead = WIFEXITED(child_status);
 }
 
-bool ElfRunner::is_dead() { return _is_dead; }
+bool ElfRunner::is_dead() const
+{
+    return _is_dead;
+}
 
 
-std::optional<ElfRunner::runtime_arguments> ElfRunner::get_runtime_arguments() const
+ElfRunner::runtime_arguments ElfRunner::get_runtime_arguments() const
 {
     return _runtime_arguments;
+}
+
+ElfRunner::runtime_mapping ElfRunner::get_runtime_mapping() const
+{
+    return _runtime_mapping;
 }
 
