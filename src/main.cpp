@@ -25,11 +25,11 @@
 
 int main(int argc, char *argv[])
 {
-    int tab_selected = 0;
+    int display_selected = 0;
     bool in_search_mode = false;
     std::string binary_path;
     std::string function_name;
-    if (argc < 2) { tab_selected = 1; in_search_mode = true; }
+    if (argc < 2) { display_selected = 1; in_search_mode = true; }
     if (argc >= 2) { binary_path = argv[1]; }
     if (argc < 3) { function_name = "_start"; }
     if (argc >= 3) { function_name = argv[2]; }
@@ -230,14 +230,45 @@ int main(int argc, char *argv[])
 	    	const auto runtime_value = dynamic_debugger.value().get_runtime_arguments();
 	        return ftxui::vbox({ftxui::text("Program finished"), Loader::load_functions_arguments(runtime_value)}) | ftxui::border | ftxui::center;
 	    }
-	    screen.PostEvent(ftxui::Event::Character('a')); // TODO: there is got to be a better way to trigger a screen redraw
+	    screen.PostEvent(ftxui::Event::Character('p')); // TODO: there is got to be a better way to trigger a screen redraw
 	    const auto functions = static_debugger.value().get_implemented_functions();
 	    dynamic_debugger.value().run_functions(functions);
 	    return ftxui::vbox({ftxui::text("Running process..."), Loader::load_functions_arguments(dynamic_debugger.value().get_runtime_arguments())}) | ftxui::border | ftxui::center;
 	});
-	auto middle = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab, trace_functions_tab}, &tab_selected);
+	auto trace_function_tab = ftxui::Renderer([&] { 
+	    CHECK_LOADED_ELF();
+	    const std::string main_screen_instruction = "Go to main screen to view results";
+	    if (dynamic_debugger.value().is_dead())
+	    {
+		disassembled_code = Loader::load_code_blocks(function_name, static_debugger.value(), dynamic_debugger.value().get_runtime_mapping());
+	        return ftxui::vbox({ftxui::text("Program finished"), ftxui::text(main_screen_instruction)}) | ftxui::border | ftxui::center;
+	    }
+	    screen.PostEvent(ftxui::Event::Character('p')); // TODO: there is got to be a better way to trigger a screen redraw
+	    const auto function       = static_debugger.value().get_function(function_name);
+	    const auto function_calls = static_debugger.value().get_function_calls(function_name);
+	    dynamic_debugger.value().run_function(function, function_calls);
+            std::ostringstream function_status;
+            function_status << "Selected function (" << function_name << ") ";
+	    if (dynamic_debugger.value().get_runtime_mapping().empty()) function_status << "not hit yet";
+	    else function_status << "hit. " << main_screen_instruction;
+	    return ftxui::vbox({ftxui::text("Running process..."), ftxui::text(function_status.str())}) | ftxui::border | ftxui::center;
+	});
+	auto info_tab      = ftxui::Renderer([&] {
+	    CHECK_LOADED_ELF();
+	    return ftxui::vbox({
+			    ftxui::text("Program execution tab"),
+			    ftxui::separator(),
+			    ftxui::text("Press A for a summary of all functions hit"),
+			    ftxui::text("Press S for a detailed summary of a selected function")
+			    }) | ftxui::border | ftxui::center;
+	});
 
-	std::vector<std::string> tab_values = {"Main", "Open file", "Functions", "Strings", "Trace all functions", "Quit"};
+	std::vector<std::string> tab_values = {"Display", "Execute"};
+	std::vector<std::string> display_values = {"Main", "Open file", "Functions", "Strings"};
+	std::vector<std::string> execute_values = {"Information", "All functions", "Single function"};
+	int tab_selected = 0;
+	int execute_selected = 0;
+
 	auto option = ftxui::MenuOption::HorizontalAnimated();
 	option.elements_infix = [] { return ftxui::text(" | "); };
 	option.entries_option.transform = [](const ftxui::EntryState& state) {
@@ -246,32 +277,61 @@ int main(int argc, char *argv[])
 		    e = e | ftxui::bold | ftxui::underlined;
 		return e;
 	};
-	auto tab_toggle = ftxui::Menu(&tab_values, &tab_selected, option);
-	auto top        = ftxui::Renderer([&] { return ftxui::hbox({ftxui::text(" "), tab_toggle->Render()}) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 1); });
+	auto display_toggle = ftxui::Menu(&display_values, &display_selected, option);
+	auto execute_toggle = ftxui::Menu(&execute_values, &execute_selected, option);
+	auto display_main   = ftxui::Container::Tab({code_tab, open_file_tab, function_tab, string_tab}, &display_selected);
+	auto execute_main   = ftxui::Container::Tab({info_tab, trace_functions_tab, trace_function_tab}, &execute_selected);
+	auto display        = ftxui::Renderer([&] { return ftxui::vbox({ftxui::hbox({ftxui::text(" "), display_toggle->Render()}) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 1), display_main->Render()}); });
+	auto execute        = ftxui::Renderer([&] { return ftxui::vbox({ftxui::hbox({ftxui::text(" "), execute_toggle->Render()}) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 1), execute_main->Render()}); });
 
-	auto renderer = ftxui::Renderer(middle, [&] { return ftxui::vbox({top->Render(), ftxui::separator(), middle->Render()}); })
+	auto tab_toggle = ftxui::Toggle(&tab_values, &tab_selected);
+	auto tab_container = ftxui::Container::Tab({display, execute}, &tab_selected);
+
+	auto container = ftxui::Container::Vertical({tab_toggle, tab_container});
+
+	auto renderer = ftxui::Renderer(container, [&] { return ftxui::vbox({
+				ftxui::hbox({tab_toggle->Render() | ftxui::flex, ftxui::text("Quit")}),
+				ftxui::separator(),
+				tab_container->Render()
+			}); })
 	    | ftxui::CatchEvent([&](ftxui::Event event)
 	    {
 		if (in_search_mode) return false;
-		if (event == ftxui::Event::Character('m'))
+		if (event == ftxui::Event::Character('d'))
 		{
 	            tab_selected = 0;
 	    	}
-		else if (event == ftxui::Event::Character('o'))
+		else if (event == ftxui::Event::Character('e'))
 		{
 	            tab_selected = 1;
 	    	}
+		else if (event == ftxui::Event::Character('m'))
+		{
+	            display_selected = 0;
+	    	}
+		else if (event == ftxui::Event::Character('o'))
+		{
+	            display_selected = 1;
+	    	}
 		else if (event == ftxui::Event::Character('f'))
 		{
-	            tab_selected = 2;
+	            display_selected = 2;
 	    	}
-		else if (event == ftxui::Event::Character('s'))
+		else if (tab_selected == 0 and event == ftxui::Event::Character('s'))
 		{
-	            tab_selected = 3;
+	            display_selected = 3;
 	    	}
-		else if (event == ftxui::Event::Character('t'))
+		else if (event == ftxui::Event::Character('i'))
 		{
-	            tab_selected = 4;
+	            execute_selected = 0;
+	    	}
+		else if (event == ftxui::Event::Character('a'))
+		{
+	            execute_selected = 1;
+	    	}
+		else if (tab_selected == 1 and event == ftxui::Event::Character('s'))
+		{
+	            execute_selected = 2;
 	    	}
 		else if (event == ftxui::Event::Character('q'))
 		{
