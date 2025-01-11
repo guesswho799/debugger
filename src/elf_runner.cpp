@@ -7,7 +7,6 @@
 #include <sys/ptrace.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <sys/user.h>
 #include <sys/reg.h>
 #include <signal.h>
 #include <iostream>
@@ -49,7 +48,7 @@ pid_t ElfRunner::run(std::string file_name)
     {
         int dev_null = open("/dev/null", O_WRONLY);
         dup2(dev_null, STDOUT_FILENO);
-        ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+        ptrace(PTRACE_TRACEME);
         char* args[] = {const_cast<char*>(file_name.c_str()), NULL};
         execv(file_name.c_str(), args);
     }
@@ -139,7 +138,7 @@ void ElfRunner::_log_step()
 {
     struct user_regs_struct regs = Ptrace::get_regs(_child_pid);
     errno = 0;
-    _runtime_mapping[regs.rip]++;
+    _runtime_mapping.push_back(regs);
 
     int child_status = 0;
     Ptrace::single_step(_child_pid);
