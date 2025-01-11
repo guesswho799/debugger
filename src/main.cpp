@@ -41,9 +41,9 @@ int main(int argc, char *argv[])
 	auto disassembled_code = ftxui::text("no file loaded..");
 	if (!binary_path.empty())
 	{
-            static_debugger = std::optional<ElfReader>(binary_path);
-            dynamic_debugger = std::optional<ElfRunner>(binary_path);
-	    disassembled_code = Loader::load_code_blocks(function_name, static_debugger.value());
+            static_debugger   = std::optional<ElfReader>(binary_path);
+            dynamic_debugger  = std::optional<ElfRunner>(binary_path);
+	    disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name));
 	}
 
 	auto screen = ftxui::ScreenInteractive::Fullscreen();
@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
 
 	auto code_tab = ftxui::Renderer([&] {
 	    CHECK_LOADED_ELF();
-	    return disassembled_code | ftxui::border | ftxui::center;
+	    return disassembled_code;
 	} );
 
 	std::string file_path;
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 	                binary_path = files_as_strings[open_file_selector];
 	                static_debugger = std::optional<ElfReader>(binary_path);
 	                dynamic_debugger = std::optional<ElfRunner>(binary_path);
-	                disassembled_code = Loader::load_code_blocks(function_name, static_debugger.value());
+	    		disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name));
 	                in_search_mode = false;
 	                file_path = "";
 	                screen.PostEvent(ftxui::Event::Character('m'));
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
 	            {
 			if (dynamic_debugger.has_value()) dynamic_debugger->reset();
 	                function_name = function_table_content[function_selector][0];
-	                disassembled_code = Loader::load_code_blocks(function_name, static_debugger.value());
+	    		disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name));
 	                in_search_mode = false;
 	                function_input_content = "";
 			function_selector = 0;
@@ -235,24 +235,33 @@ int main(int argc, char *argv[])
 	    dynamic_debugger.value().run_functions(functions);
 	    return ftxui::vbox({ftxui::text("Running process..."), Loader::load_functions_arguments(dynamic_debugger.value().get_runtime_arguments())}) | ftxui::border | ftxui::center;
 	});
+
+	bool view_result = false;
+	uint64_t code_selector = 0;
 	auto trace_function_tab = ftxui::Renderer([&] { 
 	    CHECK_LOADED_ELF();
-	    const std::string main_screen_instruction = "Go to main screen to view results";
-	    if (dynamic_debugger.value().is_dead())
+	    if (dynamic_debugger.value().is_dead() or view_result == true)
 	    {
-		disassembled_code = Loader::load_code_blocks(function_name, static_debugger.value(), dynamic_debugger.value().get_runtime_mapping());
-	        return ftxui::vbox({ftxui::text("Program finished"), ftxui::text(main_screen_instruction)}) | ftxui::border | ftxui::center;
+                const auto assembly        = static_debugger.value().get_function_code_by_name(function_name);
+		const auto registers       = dynamic_debugger.value().get_runtime_mapping()[code_selector];
+	        const auto code_block      = Loader::load_instructions(function_name, assembly, registers.rip);
+	        const auto trace_player    = Loader::load_trace_player(dynamic_debugger.value().get_runtime_mapping(), code_selector);
+	        const auto register_window = Loader::load_register_window(registers);
+		return ftxui::vbox({trace_player, ftxui::hbox({code_block, register_window})}) | ftxui::center;
 	    }
+
 	    screen.PostEvent(ftxui::Event::Character('p')); // TODO: there is got to be a better way to trigger a screen redraw
 	    const auto function       = static_debugger.value().get_function(function_name);
 	    const auto function_calls = static_debugger.value().get_function_calls(function_name);
 	    dynamic_debugger.value().run_function(function, function_calls);
+
             std::ostringstream function_status;
             function_status << "Selected function (" << function_name << ") ";
 	    if (dynamic_debugger.value().get_runtime_mapping().empty()) function_status << "not hit yet";
-	    else function_status << "hit. " << main_screen_instruction;
+	    else function_status << "hit. Press V to view results";
 	    return ftxui::vbox({ftxui::text("Running process..."), ftxui::text(function_status.str())}) | ftxui::border | ftxui::center;
 	});
+
 	auto info_tab      = ftxui::Renderer([&] {
 	    CHECK_LOADED_ELF();
 	    return ftxui::vbox({
@@ -284,14 +293,21 @@ int main(int argc, char *argv[])
 	auto display        = ftxui::Renderer([&] { return ftxui::vbox({ftxui::hbox({ftxui::text(" "), display_toggle->Render()}) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 1), display_main->Render()}); });
 	auto execute        = ftxui::Renderer([&] { return ftxui::vbox({ftxui::hbox({ftxui::text(" "), execute_toggle->Render()}) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 1), execute_main->Render()}); });
 
-	auto tab_toggle = ftxui::Toggle(&tab_values, &tab_selected);
+	auto toggle_option = ftxui::MenuOption::HorizontalAnimated();
+	toggle_option.elements_infix = [] { return ftxui::text(" | "); };
+	toggle_option.entries_option.transform = [](const ftxui::EntryState& state) {
+		ftxui::Element e = ftxui::text(state.label);
+		if (state.active)
+		    e = e | ftxui::bold | ftxui::inverted;
+		return e;
+	};
+	auto tab_toggle = ftxui::Menu(&tab_values, &tab_selected, toggle_option);
 	auto tab_container = ftxui::Container::Tab({display, execute}, &tab_selected);
 
 	auto container = ftxui::Container::Vertical({tab_toggle, tab_container});
 
-	auto renderer = ftxui::Renderer(container, [&] { return ftxui::vbox({
+	auto renderer = ftxui::Renderer(execute_main, [&] { return ftxui::vbox({
 				ftxui::hbox({tab_toggle->Render() | ftxui::flex, ftxui::text("Quit")}),
-				ftxui::separator(),
 				tab_container->Render()
 			}); })
 	    | ftxui::CatchEvent([&](ftxui::Event event)
@@ -300,10 +316,12 @@ int main(int argc, char *argv[])
 		if (event == ftxui::Event::Character('d'))
 		{
 	            tab_selected = 0;
+		    display_selected = 0;
 	    	}
 		else if (event == ftxui::Event::Character('e'))
 		{
 	            tab_selected = 1;
+		    execute_selected = 0;
 	    	}
 		else if (event == ftxui::Event::Character('m'))
 		{
@@ -328,16 +346,41 @@ int main(int argc, char *argv[])
 		else if (event == ftxui::Event::Character('a'))
 		{
 	            execute_selected = 1;
+		    dynamic_debugger.value().reset();
 	    	}
 		else if (tab_selected == 1 and event == ftxui::Event::Character('s'))
 		{
 	            execute_selected = 2;
+		    view_result = false;
+		    code_selector = 0;
+		    dynamic_debugger.value().reset();
+		    dynamic_debugger.value().reset();
 	    	}
+		if (tab_selected == 1 and execute_selected == 2 and event == ftxui::Event::Character('v'))
+		{
+		    view_result = true;
+		}
 		else if (event == ftxui::Event::Character('q'))
 		{
 	            screen.ExitLoopClosure()();
 	            return true;
 	    	}
+		if (tab_selected == 1 and execute_selected == 2)
+		{
+		    if (event == ftxui::Event::ArrowLeft)
+		    {
+			if (code_selector != 0) code_selector--;
+			return true;
+		    }
+		    if (event == ftxui::Event::ArrowRight)
+		    {
+			code_selector++;
+			const auto container = dynamic_debugger.value().get_runtime_mapping();
+			const uint64_t code_size = container.end() - container.begin() - 1;
+			if (code_selector > code_size) code_selector = code_size;
+			return true;
+		    }
+		}
 		return false;
 	});
 	screen.SetCursor(ftxui::Screen::Cursor(0, 0, ftxui::Screen::Cursor::Hidden));

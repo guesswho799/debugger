@@ -3,6 +3,7 @@
 #include "breakpoint_hook.hpp"
 #include "elf_header.hpp"
 
+#include <sys/user.h>
 #include <string>
 #include <map>
 #include <cstdint>
@@ -15,7 +16,7 @@ class ElfRunner
 public:
     using address_t         = uint64_t;
     using address_counter_t = uint64_t;
-    using runtime_mapping   = std::map<address_t, address_counter_t>;
+    using runtime_mapping   = std::vector<struct user_regs_struct>;
     using runtime_arguments = std::map<std::string, std::tuple<int64_t, int64_t, int64_t>>;
 
 public:
