@@ -9,8 +9,8 @@ Debugger is a combination of a static and dynamic debugger for vim lovers
 ### Viewing all avaliable symbols
 ![image](https://github.com/user-attachments/assets/5e6b6eb5-f232-49cb-a50b-15c401919066)
 
-### Running the binary and 'coloring' in flows
-![image](https://github.com/user-attachments/assets/bf36aebd-1057-4cd4-9726-399d8ede6792)
+### View runtime information
+![image](https://github.com/user-attachments/assets/af37ac9c-7fe8-4605-9703-21279acef949)
 
 ### Or viewing every function that ran including runtime argumets
 ![image](https://github.com/user-attachments/assets/3ca83d21-9d83-4f3c-8582-fd50ad800019)
