@@ -24,9 +24,9 @@ csh Disassembler::_get_handler()
 
 std::vector<Disassembler::Line> Disassembler::disassemble(uint8_t* input_buffer, size_t input_buffer_size, int base_address)
 {
-    std::vector<Disassembler::Line> result;
     cs_insn *insn;
-    ssize_t count = cs_disasm(_handle, input_buffer, input_buffer_size, base_address, 0, &insn);
+    std::vector<Disassembler::Line> result;
+    const ssize_t count = cs_disasm(_handle, input_buffer, input_buffer_size, base_address, 0, &insn);
     if (count < 0) throw Status::disassembler__parse_failed;
     int pc = 0;
     for (int i = 0; i < count; i++)

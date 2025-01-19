@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <ranges>
+#include <algorithm>
 #include <ctype.h>
 
 #include "status.hpp"
@@ -150,7 +151,7 @@ std::vector<std::string> ElfReader::strings_factory()
     const NamedSection string_section = get_section(".rodata");
     file.seekg(string_section.unloaded_offset);
     std::vector<std::string> strings;
-    while (file.tellg() < string_section.unloaded_offset + string_section.size)
+    while (static_cast<uint64_t>(file.tellg()) < string_section.unloaded_offset + string_section.size)
     {
 	std::string string;
 	bool skip_irrelevant_strings = false;
@@ -170,7 +171,7 @@ std::vector<std::string> ElfReader::strings_factory()
 std::vector<NamedSymbol> ElfReader::get_functions() const
 {
     std::vector<NamedSymbol> functions{};
-    auto function_filter = [&](NamedSymbol symbol){return symbol.type & SymbolType::function; };
+    auto function_filter = [&](const NamedSymbol& symbol){return symbol.type & SymbolType::function; };
     for(const auto& symbol : _static_symbols | std::views::filter(function_filter))
     {
         functions.push_back(symbol);
@@ -181,7 +182,7 @@ std::vector<NamedSymbol> ElfReader::get_functions() const
 std::vector<NamedSymbol> ElfReader::get_implemented_functions() const
 {
     std::vector<NamedSymbol> functions{};
-    auto function_filter = [&](NamedSymbol symbol){return symbol.type & SymbolType::function and symbol.value != 0; };
+    auto function_filter = [&](const NamedSymbol& symbol){return symbol.type & SymbolType::function and symbol.value != 0; };
     for(const auto& symbol : _static_symbols | std::views::filter(function_filter))
     {
         functions.push_back(symbol);
@@ -191,7 +192,7 @@ std::vector<NamedSymbol> ElfReader::get_implemented_functions() const
 
 NamedSymbol ElfReader::get_function(std::string name) const
 {
-    auto function_filter = [&](NamedSymbol symbol){return symbol.type & SymbolType::function && symbol.name == name; };
+    auto function_filter = [&](const NamedSymbol& symbol){return symbol.type & SymbolType::function && symbol.name == name; };
     const auto iterator = std::find_if(_static_symbols.begin(), _static_symbols.end(), function_filter);
     if (iterator == _static_symbols.end()) throw CriticalException(Status::elf_header__function_not_found);
 

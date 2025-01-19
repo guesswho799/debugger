@@ -2,6 +2,7 @@
 
 #include <sys/wait.h>
 #include <sys/ptrace.h>
+#include <cstdint>
 #include "status.hpp"
 
 class BreakpointHook

@@ -17,7 +17,7 @@ namespace Loader
 	return stream.str();
     }
 
-    ftxui::Element get_opcodes(Disassembler::Line line)
+    ftxui::Element get_opcodes(const Disassembler::Line& line)
     {
         auto opcodes_as_box = ftxui::vbox({});
         std::ostringstream opcodes_stream;
@@ -44,33 +44,45 @@ namespace Loader
         return ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
     }
 
-    ftxui::Element load_instructions(const std::string& function_name, const std::vector<Disassembler::Line>& assembly, std::optional<uint64_t> line_selected={})
+    ftxui::Element load_instructions(const std::string& function_name, const std::vector<Disassembler::Line>& assembly, uint64_t scroll_bar, std::optional<uint64_t> line_selected={})
     {
-        std::vector<ftxui::Element> lines;
-        for (const auto& line: assembly)
+        auto block = ftxui::vbox({ftxui::hbox({ftxui::text("Instructions"), ftxui::separator(), ftxui::text(function_name) | ftxui::bold}), ftxui::separator()});
+	const int screen_height = ftxui::Terminal::Size().dimy;
+	const int main_display_height = line_selected.has_value() ? screen_height - 12 : screen_height - 6;
+	int height_counter = 0;
+	int max_line_width = 0;
+	bool reached_end = false;
+        for (const auto& line: assembly | std::views::drop(scroll_bar))
         {
             std::ostringstream address;
-            address << std::hex << line.address;
+            address << "0x" << std::hex << line.address;
+	    const float amount_of_opcodes = line.opcodes.end() - line.opcodes.begin();
+	    const float opcodes_per_line = 3;
+	    const float lines_of_opcodes = std::ceil(amount_of_opcodes / opcodes_per_line);
+	    const int width = address.str().length() + std::min(amount_of_opcodes, opcodes_per_line) * 2 + 2 + line.instruction.length() + 1 + line.arguments.length() + 4;
+	    if (width > max_line_width) max_line_width = width;
+
+	    if (height_counter + lines_of_opcodes >= main_display_height) reached_end = true;
+	    if (reached_end) continue;
+	    height_counter += lines_of_opcodes;
+	    
 	    auto content = ftxui::hbox({
-		ftxui::text("0x"), ftxui::text(address.str()),
+		ftxui::text(address.str()),
 		ftxui::separator(),
 		get_opcodes(line),
 		ftxui::separator(),
 		ftxui::text(line.instruction + " " + line.arguments)
 	    });
-	    if (line_selected.has_value() and line_selected.value() == line.address) content = content | ftxui::inverted;
-  	    lines.push_back(content);
-        }
+	    if (line_selected.has_value() and line_selected.value() == line.address)
+	        content = content | ftxui::inverted;
 
-        auto block = ftxui::vbox({ftxui::hbox({ftxui::text("Instructions"), ftxui::separator(), ftxui::text(function_name) | ftxui::bold}), ftxui::separator()});
-        for (std::tuple<const Disassembler::Line&, const ftxui::Element&> item: std::views::zip(assembly, lines))
-        {
 	    // TODO:: display jumps as arrows
-	    // if (std::get<0>(item).is_jump) block = ftxui::vbox(block, std::get<1>(item), ftxui::separator());
-	    // else block = ftxui::vbox(block, std::get<1>(item));
-	    block = ftxui::vbox(block, std::get<1>(item));
+	    block = ftxui::vbox(block, content);
         }
-        return block | ftxui::border | ftxui::center;
+	for (int i = 1; i < main_display_height - height_counter; i++)
+	    block = ftxui::vbox(block, ftxui::text(""));
+
+        return block | ftxui::border | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, max_line_width) |  ftxui::center;
     }
 
     ftxui::Element load_register_window(const struct user_regs_struct& registers)
@@ -142,7 +154,7 @@ namespace Loader
 	    functions_info << function_name << "(" << std::get<0>(argument) << ", " << std::get<1>(argument) << ", " << std::get<2>(argument) << ") ";
 	    functions = ftxui::vbox({functions, ftxui::text(functions_info.str())});
 	}
-	return functions | ftxui::border | ftxui::center;
+	return functions;
     }
 }
 
