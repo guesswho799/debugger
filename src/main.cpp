@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <ranges>
+#include <cmath>
 
 #include <ftxui/component/captured_mouse.hpp>
 #include <ftxui/component/component.hpp>
@@ -26,6 +27,7 @@
 int main(int argc, char *argv[])
 {
     int display_selected = 0;
+    uint64_t code_selector = 0;
     bool in_search_mode = false;
     std::string binary_path;
     std::string function_name;
@@ -43,7 +45,7 @@ int main(int argc, char *argv[])
 	{
             static_debugger   = std::optional<ElfReader>(binary_path);
             dynamic_debugger  = std::optional<ElfRunner>(binary_path);
-	    disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name));
+	    disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name), code_selector);
 	}
 
 	auto screen = ftxui::ScreenInteractive::Fullscreen();
@@ -137,7 +139,7 @@ int main(int argc, char *argv[])
 	                binary_path = files_as_strings[open_file_selector];
 	                static_debugger = std::optional<ElfReader>(binary_path);
 	                dynamic_debugger = std::optional<ElfRunner>(binary_path);
-	    		disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name));
+	    		disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name), code_selector);
 	                in_search_mode = false;
 	                file_path = "";
 	                screen.PostEvent(ftxui::Event::Character('m'));
@@ -152,13 +154,14 @@ int main(int argc, char *argv[])
 	std::vector<std::vector<std::string>> function_table_content;
 	auto function_tab    = ftxui::Renderer(function_input, [&] {
 	    CHECK_LOADED_ELF();
+	    function_table_content.clear();
 	    if (function_input_content.empty() or !in_search_mode)
 	    { function_table_content = Loader::load_function_table(static_debugger.value()); }
 	    else
 	    {
-	        function_table_content = Loader::load_function_table(static_debugger.value()) |
-		    std::views::filter([&](const auto& item) { return item[0].find(function_input_content) != std::string::npos; }) |
-		    std::ranges::to<std::vector>();
+		for (const auto& item: Loader::load_function_table(static_debugger.value()))
+		    if (item[0].find(function_input_content) != std::string::npos)
+		        function_table_content.push_back(item);
 	    }
 	    function_table_content.insert(function_table_content.begin(), 1, {"Name", "Address ", "Size"});
 	    auto table = ftxui::Table(function_table_content);
@@ -207,10 +210,10 @@ int main(int argc, char *argv[])
 	            {
 			if (dynamic_debugger.has_value()) dynamic_debugger->reset();
 	                function_name = function_table_content[function_selector][0];
-	    		disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name));
+	    		disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name), code_selector);
 	                in_search_mode = false;
 	                function_input_content = "";
-			function_selector = 0;
+			function_selector = 1;
 	                screen.PostEvent(ftxui::Event::Character('m'));
 	            }
 	        }
@@ -228,26 +231,29 @@ int main(int argc, char *argv[])
 	    if (dynamic_debugger.value().is_dead())
 	    {
 	    	const auto runtime_value = dynamic_debugger.value().get_runtime_arguments();
-	        return ftxui::vbox({ftxui::text("Program finished"), Loader::load_functions_arguments(runtime_value)}) | ftxui::border | ftxui::center;
+	        return ftxui::vbox({ftxui::text("Program finished"), ftxui::separator(), Loader::load_functions_arguments(runtime_value)}) | ftxui::border | ftxui::center;
 	    }
 	    screen.PostEvent(ftxui::Event::Character('p')); // TODO: there is got to be a better way to trigger a screen redraw
 	    const auto functions = static_debugger.value().get_implemented_functions();
 	    dynamic_debugger.value().run_functions(functions);
-	    return ftxui::vbox({ftxui::text("Running process..."), Loader::load_functions_arguments(dynamic_debugger.value().get_runtime_arguments())}) | ftxui::border | ftxui::center;
+	    return ftxui::vbox({ftxui::text("Running process..."), ftxui::separator(), Loader::load_functions_arguments(dynamic_debugger.value().get_runtime_arguments())}) | ftxui::border | ftxui::center;
 	});
 
 	bool view_result = false;
-	uint64_t code_selector = 0;
+	uint64_t player_selector = 0;
 	auto trace_function_tab = ftxui::Renderer([&] { 
 	    CHECK_LOADED_ELF();
 	    if (dynamic_debugger.value().is_dead() or view_result == true)
 	    {
                 const auto assembly        = static_debugger.value().get_function_code_by_name(function_name);
-		const auto registers       = dynamic_debugger.value().get_runtime_mapping()[code_selector];
-	        const auto code_block      = Loader::load_instructions(function_name, assembly, registers.rip);
-	        const auto trace_player    = Loader::load_trace_player(dynamic_debugger.value().get_runtime_mapping(), code_selector);
-	        const auto register_window = Loader::load_register_window(registers);
-		return ftxui::vbox({trace_player, ftxui::hbox({code_block, register_window})}) | ftxui::center;
+		const auto registers       = dynamic_debugger.value().get_runtime_mapping()[player_selector];
+	        const auto code_block      = Loader::load_instructions(function_name, assembly, code_selector, registers.rip);
+	        const auto trace_player    = Loader::load_trace_player(dynamic_debugger.value().get_runtime_mapping(), player_selector);
+	        const auto register_window = Loader::load_register_window(registers) |
+		                             ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 17);
+		return ftxui::vbox({trace_player, ftxui::hbox({code_block, register_window}) | 
+				ftxui::size(ftxui::HEIGHT, ftxui::LESS_THAN, screen.dimy()-9)}) |
+				ftxui::center;
 	    }
 
 	    screen.PostEvent(ftxui::Event::Character('p')); // TODO: there is got to be a better way to trigger a screen redraw
@@ -306,7 +312,7 @@ int main(int argc, char *argv[])
 
 	auto container = ftxui::Container::Vertical({tab_toggle, tab_container});
 
-	auto renderer = ftxui::Renderer(execute_main, [&] { return ftxui::vbox({
+	auto renderer = ftxui::Renderer(display_main, [&] { return ftxui::vbox({
 				ftxui::hbox({tab_toggle->Render() | ftxui::flex, ftxui::text("Quit")}),
 				tab_container->Render()
 			}); })
@@ -317,6 +323,8 @@ int main(int argc, char *argv[])
 		{
 	            tab_selected = 0;
 		    display_selected = 0;
+		    code_selector = 0;
+		    disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name), code_selector);
 	    	}
 		else if (event == ftxui::Event::Character('e'))
 		{
@@ -352,6 +360,7 @@ int main(int argc, char *argv[])
 		{
 	            execute_selected = 2;
 		    view_result = false;
+		    player_selector = 0;
 		    code_selector = 0;
 		    dynamic_debugger.value().reset();
 		    dynamic_debugger.value().reset();
@@ -369,15 +378,38 @@ int main(int argc, char *argv[])
 		{
 		    if (event == ftxui::Event::ArrowLeft)
 		    {
-			if (code_selector != 0) code_selector--;
+			if (player_selector != 0) player_selector--;
 			return true;
 		    }
-		    if (event == ftxui::Event::ArrowRight)
+		    else if (event == ftxui::Event::ArrowRight)
 		    {
-			code_selector++;
+			player_selector++;
 			const auto container = dynamic_debugger.value().get_runtime_mapping();
 			const uint64_t code_size = container.end() - container.begin() - 1;
-			if (code_selector > code_size) code_selector = code_size;
+			if (player_selector > code_size) player_selector = code_size;
+			return true;
+		    }
+		}
+		if ((tab_selected == 1 and execute_selected == 2) or (tab_selected == 0 and display_selected == 0))
+		{
+		    if (event == ftxui::Event::ArrowDown)
+		    {
+			uint64_t code_size = 0;
+			for (const auto& line : static_debugger.value().get_function_code_by_name(function_name))
+			{
+			    const float amount_of_opcodes = line.opcodes.end() - line.opcodes.begin();
+			    code_size += std::ceil(amount_of_opcodes / 3);
+			}
+			const uint64_t screen_size = screen.dimy();
+			const uint64_t main_display_size = (tab_selected == 1 and execute_selected == 2) ? screen_size : screen_size + 4;
+			if (code_size - code_selector >= main_display_size) code_selector++;
+		        disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name), code_selector);
+			return true;
+		    }
+		    else if (event == ftxui::Event::ArrowUp)
+		    {
+			if (code_selector != 0) code_selector--;
+		        disassembled_code = Loader::load_instructions(function_name, static_debugger.value().get_function_code_by_name(function_name), code_selector);
 			return true;
 		    }
 		}

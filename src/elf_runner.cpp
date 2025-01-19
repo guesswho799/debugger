@@ -10,6 +10,7 @@
 #include <sys/reg.h>
 #include <signal.h>
 #include <iostream>
+#include <algorithm>
 
 
 ElfRunner::ElfRunner(std::string file_name):
