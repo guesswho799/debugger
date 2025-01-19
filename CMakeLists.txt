@@ -1,12 +1,10 @@
 cmake_minimum_required(VERSION 3.28)
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_C_COMPILER /usr/bin/gcc-14)
-set(CMAKE_CXX_COMPILER /usr/bin/g++-14)
 
 project(Debugger VERSION 1.0.0)
 
-SET(CMAKE_CXX_FLAGS "-Wall -Wextra -O3 -g")
+SET(CMAKE_CXX_FLAGS "-Wall -Wextra -O3")
 
 file(GLOB_RECURSE sources src/*.cpp)
 file(GLOB_RECURSE headers include/*.hpp)
