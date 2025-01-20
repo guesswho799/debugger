@@ -79,8 +79,10 @@ namespace Loader
 	    // TODO:: display jumps as arrows
 	    block = ftxui::vbox(block, content);
         }
-	for (int i = 1; i < main_display_height - height_counter; i++)
-	    block = ftxui::vbox(block, ftxui::text(""));
+
+	if (reached_end)
+	    for (int i = 1; i < main_display_height - height_counter; i++)
+	        block = ftxui::vbox(block, ftxui::text(""));
 
         return block | ftxui::border | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, max_line_width) |  ftxui::center;
     }

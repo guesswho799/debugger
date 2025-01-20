@@ -1,13 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-
 project(Debugger VERSION 1.0.0)
-
-SET(CMAKE_CXX_FLAGS "-Wall -Wextra -O3")
-
-file(GLOB_RECURSE sources src/*.cpp)
-file(GLOB_RECURSE headers include/*.hpp)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -22,6 +16,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(FTXUI CAPSTONE)
 
+SET(CMAKE_CXX_FLAGS "-Wall -Wextra -O3")
+file(GLOB_RECURSE sources src/*.cpp)
 add_executable(${PROJECT_NAME} ${sources})
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION)
