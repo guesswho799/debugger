@@ -134,7 +134,7 @@ ftxui::Component TabController::_generate_logic()
     	    else if (event == ftxui::Event::ArrowRight)
     	    {
     		get<SingleTrace>()->inc_selector();
-    		const auto container = get<AppState>()->dynamic_debugger.value().get_runtime_mapping();
+    		const auto container = get<AppState>()->dynamic_debugger.value().get_runtime_regs();
     		const uint64_t code_size = container.end() - container.begin() - 1;
     		if (get<SingleTrace>()->get_selector() > code_size) get<SingleTrace>()->dec_selector();
     		return true;

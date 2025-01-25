@@ -107,16 +107,33 @@ namespace Loader
 	    {"r13 ", convert_to_hex(registers.r13)},
 	    {"r14 ", convert_to_hex(registers.r14)},
 	    {"r15 ", convert_to_hex(registers.r15)},
-	    {"rip ", convert_to_hex(registers.rip)}
+	    {"rip ", convert_to_hex(registers.rip)},
+	    {"rbp ", convert_to_hex(registers.rbp)},
+	    {"rsp ", convert_to_hex(registers.rsp)}
 	};
 	auto table = ftxui::Table(table_content);
 	table.SelectColumn(0).Decorate(ftxui::color(ftxui::Color::White));
 	table.SelectColumn(1).Decorate(ftxui::color(ftxui::Color::Grey50));
 
-	return ftxui::vbox({ftxui::text("Registers") | ftxui::bold, ftxui::separator(), table.Render()}) | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 25) | ftxui::border;
+	return ftxui::vbox({ftxui::text("Registers") | ftxui::bold, ftxui::separator(), table.Render()}) | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 25) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 19) | ftxui::border;
     }
 
-    inline ftxui::Element load_trace_player(const ElfRunner::runtime_mapping& runtime_data, uint64_t code_selector)
+    inline ftxui::Element load_stack_window(const ElfRunner::RuntimeStack& stack_metadata)
+    {
+        const auto& [base_stack_pointer, stack] = stack_metadata;
+        auto block = ftxui::vbox({});
+        for (int i = 0; i < ElfRunner::stack_size; i++)
+        {
+	    std::string index_subtractor = i == 0 ? "   " : "- " + std::to_string(i*sizeof(ElfRunner::StackElement));
+	    if (index_subtractor.length() < 4)
+	        index_subtractor += " ";
+
+	    block = ftxui::vbox({ftxui::hbox({ftxui::text("rbp " + index_subtractor), ftxui::separator(), ftxui::text(convert_to_hex(stack[i]))}), block});
+        }
+	return ftxui::vbox({ftxui::text("Stack"), ftxui::separator(), block}) | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 20) | ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 12) | ftxui::border;
+    }
+
+    inline ftxui::Element load_trace_player(const ElfRunner::RuntimeRegs& runtime_data, uint64_t code_selector)
     {
 	const float data_size = runtime_data.end() - runtime_data.begin() - 1;
 	return ftxui::vbox({
@@ -148,7 +165,7 @@ namespace Loader
         return string_tab_content;
     }
     
-    inline ftxui::Element load_functions_arguments(const ElfRunner::runtime_arguments runtime_value)
+    inline ftxui::Element load_functions_arguments(const ElfRunner::RuntimeArguments runtime_value)
     {
 	auto functions = ftxui::vbox({});
 	if (runtime_value.empty()) return functions | ftxui::border | ftxui::center;
