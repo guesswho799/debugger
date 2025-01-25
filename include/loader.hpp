@@ -1,8 +1,11 @@
 #pragma once
 
 #include <vector>
+#include <cmath>
+#include <ranges>
 #include <sstream>
 
+#include <ftxui/dom/table.hpp>
 #include "disassembler.hpp"
 #include "elf_reader.hpp"
 #include "elf_runner.hpp"
@@ -10,14 +13,14 @@
 
 namespace Loader
 {
-    std::string convert_to_hex(uint64_t number)
+    inline std::string convert_to_hex(uint64_t number)
     {
         std::ostringstream stream;
         stream << "0x" << std::hex << number;
 	return stream.str();
     }
 
-    ftxui::Element get_opcodes(const Disassembler::Line& line)
+    inline ftxui::Element get_opcodes(const Disassembler::Line& line)
     {
         auto opcodes_as_box = ftxui::vbox({});
         std::ostringstream opcodes_stream;
@@ -44,7 +47,7 @@ namespace Loader
         return ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
     }
 
-    ftxui::Element load_instructions(const std::string& function_name, const std::vector<Disassembler::Line>& assembly, uint64_t scroll_bar, std::optional<uint64_t> line_selected={})
+    inline ftxui::Element load_instructions(const std::string& function_name, const std::vector<Disassembler::Line>& assembly, uint64_t scroll_bar, std::optional<uint64_t> line_selected={})
     {
         auto block = ftxui::vbox({ftxui::hbox({ftxui::text("Instructions"), ftxui::separator(), ftxui::text(function_name) | ftxui::bold}), ftxui::separator()});
 	const int screen_height = ftxui::Terminal::Size().dimy;
@@ -87,7 +90,7 @@ namespace Loader
         return block | ftxui::border | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, max_line_width) |  ftxui::center;
     }
 
-    ftxui::Element load_register_window(const struct user_regs_struct& registers)
+    inline ftxui::Element load_register_window(const struct user_regs_struct& registers)
     {
 	std::vector<std::vector<std::string>> table_content{
 	    {"rax ", convert_to_hex(registers.rax)},
@@ -113,7 +116,7 @@ namespace Loader
 	return ftxui::vbox({ftxui::text("Registers") | ftxui::bold, ftxui::separator(), table.Render()}) | ftxui::size(ftxui::WIDTH, ftxui::GREATER_THAN, 25) | ftxui::border;
     }
 
-    ftxui::Element load_trace_player(const ElfRunner::runtime_mapping& runtime_data, uint64_t code_selector)
+    inline ftxui::Element load_trace_player(const ElfRunner::runtime_mapping& runtime_data, uint64_t code_selector)
     {
 	const float data_size = runtime_data.end() - runtime_data.begin() - 1;
 	return ftxui::vbox({
@@ -124,7 +127,7 @@ namespace Loader
 	}) | ftxui::flex | ftxui::border;
     }
 
-    std::vector<std::vector<std::string>> load_function_table(const ElfReader& static_debugger)
+    inline std::vector<std::vector<std::string>> load_function_table(const ElfReader& static_debugger)
     {
        std::vector<std::vector<std::string>> function_table_info;
        for (const auto& item: static_debugger.get_functions())
@@ -134,7 +137,7 @@ namespace Loader
        return function_table_info;
     }
 
-    ftxui::Element load_strings(const ElfReader& static_debugger)
+    inline ftxui::Element load_strings(const ElfReader& static_debugger)
     {
         auto string_tab_content = ftxui::vbox({ftxui::text("strings"), ftxui::separator()});
         std::vector<std::string> strings = static_debugger.get_strings();
@@ -145,7 +148,7 @@ namespace Loader
         return string_tab_content;
     }
     
-    ftxui::Element load_functions_arguments(const ElfRunner::runtime_arguments runtime_value)
+    inline ftxui::Element load_functions_arguments(const ElfRunner::runtime_arguments runtime_value)
     {
 	auto functions = ftxui::vbox({});
 	if (runtime_value.empty()) return functions | ftxui::border | ftxui::center;

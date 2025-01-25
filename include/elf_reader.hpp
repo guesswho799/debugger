@@ -65,3 +65,4 @@ public:
     std::vector<NamedSymbol> _static_symbols;
     std::vector<std::string> _strings;
 };
+
