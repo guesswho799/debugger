@@ -19,7 +19,7 @@ namespace Ptrace
         if (ptrace(PTRACE_SETREGS, pid, NULL, &regs) == -1 or errno != 0) { throw CriticalException(Status::ptrace__poke_regs_failed); }
     }
 
-    inline uint64_t get_code(pid_t pid, uint64_t address)
+    inline uint64_t get_memory(pid_t pid, uint64_t address)
     {
         errno = 0;
         const uint64_t code = ptrace(PTRACE_PEEKTEXT, pid, address, NULL);
@@ -27,7 +27,7 @@ namespace Ptrace
 	return code;
     }
 
-    inline void set_code(pid_t pid, uint64_t address, uint64_t code)
+    inline void set_memory(pid_t pid, uint64_t address, uint64_t code)
     {
         errno = 0;
         if (ptrace(PTRACE_POKETEXT, pid, address, code) == -1 or errno != 0) { throw CriticalException(Status::ptrace__poke_code_failed); }

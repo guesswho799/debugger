@@ -49,12 +49,12 @@ ftxui::Component SingleTrace::_generate_logic()
         if (get<AppState>()->dynamic_debugger.value().is_dead() or _state.view_result == true)
         {
             const auto assembly        = get<AppState>()->static_debugger.value().get_function_code_by_name(get<AppState>()->function_name);
-    	    const auto registers       = get<AppState>()->dynamic_debugger.value().get_runtime_mapping()[_state.selector];
+    	    const auto registers       = get<AppState>()->dynamic_debugger.value().get_runtime_regs()[_state.selector];
             const auto code_block      = Loader::load_instructions(get<AppState>()->function_name, assembly, get<Code>()->get_selector(), registers.rip);
-            const auto trace_player    = Loader::load_trace_player(get<AppState>()->dynamic_debugger.value().get_runtime_mapping(), _state.selector);
-            const auto register_window = Loader::load_register_window(registers) |
-    	                                 ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 17);
-    	    return ftxui::vbox({trace_player, ftxui::hbox({code_block, register_window}) | 
+            const auto trace_player    = Loader::load_trace_player(get<AppState>()->dynamic_debugger.value().get_runtime_regs(), _state.selector);
+            const auto register_window = Loader::load_register_window(registers);
+            const auto stack_window    = Loader::load_stack_window(get<AppState>()->dynamic_debugger.value().get_runtime_stacks()[_state.selector]);
+    	    return ftxui::vbox({trace_player, ftxui::hbox({code_block, ftxui::vbox({register_window, stack_window})}) | 
     			ftxui::size(ftxui::HEIGHT, ftxui::LESS_THAN, ftxui::Terminal::Size().dimy-9)}) |
     			ftxui::center;
         }
@@ -66,7 +66,7 @@ ftxui::Component SingleTrace::_generate_logic()
 
         std::ostringstream function_status;
         function_status << "Selected function (" << get<AppState>()->function_name << ") ";
-        if (get<AppState>()->dynamic_debugger.value().get_runtime_mapping().empty()) function_status << "not hit yet";
+        if (get<AppState>()->dynamic_debugger.value().get_runtime_regs().empty()) function_status << "not hit yet";
         else function_status << "hit. Press V to view results";
         return ftxui::vbox({ftxui::text("Running process..."), ftxui::text(function_status.str())}) | ftxui::border | ftxui::center;
     });
