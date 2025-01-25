@@ -14,8 +14,7 @@ It displays all information in tui format and is controlled only by simple keybo
 ![image](https://github.com/user-attachments/assets/f1389539-cd0b-414f-b5b9-d610aed227d6)
 
 ### Found an interesting function? Debug it step by step
-![image](https://github.com/user-attachments/assets/af37ac9c-7fe8-4605-9703-21279acef949)
-
+![image](https://github.com/user-attachments/assets/2acbad44-08e0-416a-b0db-5b35b58ae65e)
 
 
 ## How to build test binary
