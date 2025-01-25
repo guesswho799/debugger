@@ -17,6 +17,11 @@ It displays all information in tui format and is controlled only by simple keybo
 ![image](https://github.com/user-attachments/assets/af37ac9c-7fe8-4605-9703-21279acef949)
 
 
+
+## How to build test binary
+```console
+g++ -no-pie main.cpp -oprogram
+```
 ## How to build debugger
 ```console
 mkdir build && cd build
@@ -28,10 +33,6 @@ cmake .. && cmake --build .
 sudo docker run --rm -it --entrypoint /bin/bash -v.:/home/ubuntu --network=host ubuntu
 apt install cmake build-essential git
 goto `How to build debugger`
-```
-## How to build test binary
-```console
-g++ -no-pie main.cpp -oprogram
 ```
 
 ### Dependencies
