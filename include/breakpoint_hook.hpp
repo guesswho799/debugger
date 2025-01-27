@@ -1,31 +1,28 @@
 #pragma once
 
-#include <sys/wait.h>
-#include <sys/ptrace.h>
 #include <cstdint>
-#include "status.hpp"
+#include <sys/ptrace.h>
+#include <sys/wait.h>
 
-class BreakpointHook
-{
+class BreakpointHook {
 public:
-    BreakpointHook(uint64_t address, pid_t child_pid);
-    ~BreakpointHook() noexcept;
-    BreakpointHook(const BreakpointHook&) = delete;
-    BreakpointHook& operator=(const BreakpointHook&) = delete;
-    BreakpointHook(BreakpointHook&&) noexcept;
-    BreakpointHook& operator=(BreakpointHook&&) noexcept;
-
-public:
-    bool is_hit(int child_status) const;
-    bool is_hooked() const;
-    void hook();
-    void unhook();
-
-    uint64_t get_address() const;
+  BreakpointHook(uint64_t address, pid_t child_pid);
+  ~BreakpointHook() noexcept;
+  BreakpointHook(const BreakpointHook &) = delete;
+  BreakpointHook &operator=(const BreakpointHook &) = delete;
+  BreakpointHook(BreakpointHook &&) noexcept;
+  BreakpointHook &operator=(BreakpointHook &&) noexcept;
 
 public:
-    uint64_t _address;
-    pid_t _child_pid;
-    uint64_t _original_code;
+  bool is_hit(int child_status) const;
+  bool is_hooked() const;
+  void hook();
+  void unhook();
+
+  uint64_t get_address() const;
+
+public:
+  uint64_t _address;
+  pid_t _child_pid;
+  uint64_t _original_code;
 };
-
