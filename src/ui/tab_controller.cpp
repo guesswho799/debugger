@@ -1,6 +1,8 @@
-#include <cmath>
 #include "ui/tab_controller.hpp"
+#include "loader.hpp"
 #include "ui/info.hpp"
+#include <cmath>
+#include <cstdint>
 
 ftxui::Component TabController::get_logic() { return _logic; }
 
@@ -134,23 +136,17 @@ ftxui::Component TabController::_generate_logic() {
                (get<AppState>()->tab_selected == 0 and
                 get<AppState>()->display_selected == 0)) {
              if (event == ftxui::Event::ArrowDown) {
-               uint64_t code_size = 0;
-               for (const auto &line :
-                    get<AppState>()
-                        ->static_debugger.value()
-                        .get_function_code_by_name(
-                            get<AppState>()->function_name)) {
-                 const float amount_of_opcodes =
-                     line.opcodes.end() - line.opcodes.begin();
-                 code_size += std::ceil(amount_of_opcodes / 3);
-               }
-               const uint64_t screen_size = ftxui::Terminal::Size().dimy;
-               const uint64_t main_display_size =
-                   (get<AppState>()->tab_selected == 1 and
-                    get<AppState>()->execute_selected == 2)
-                       ? screen_size
-                       : screen_size + 4;
-               if (code_size - get<Code>()->get_selector() >= main_display_size)
+               const auto assembly = get<AppState>()
+                                         ->static_debugger.value()
+                                         .get_function_code_by_name(
+                                             get<AppState>()->function_name);
+               const uint32_t assembly_size = assembly.end() - assembly.begin();
+               const bool is_single_trace =
+                   get<AppState>()->tab_selected == 1 and
+                   get<AppState>()->execute_selected == 2;
+               const auto [code_size, _] = Loader::max_instruction_height(
+                   assembly, get<Code>()->get_selector(), is_single_trace);
+               if (code_size + get<Code>()->get_selector() != assembly_size)
                  get<Code>()->inc_selector();
                get<Code>()->update_code();
                return true;

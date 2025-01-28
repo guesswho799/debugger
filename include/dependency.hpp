@@ -5,7 +5,7 @@
 template <typename... T> class Dependency {
 public:
   Dependency(std::shared_ptr<T>... dependencies)
-      : _dependencies(dependencies...) {}
+      : _dependencies(std::move(dependencies)...) {}
   virtual ~Dependency() = default;
 
 protected:
