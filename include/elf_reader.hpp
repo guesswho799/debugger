@@ -27,6 +27,7 @@ public:
 
   // filtered geters
 public:
+  bool does_section_exist(const std::string_view &section_name) const;
   NamedSection get_section(const std::string_view &section_name) const;
   NamedSection get_section(std::size_t section_index) const;
   NamedSymbol get_function(std::string name) const;
@@ -44,6 +45,9 @@ private:
   std::vector<NamedSymbol>
   symbols_factory(const std::string_view &section_name,
                   const std::string_view &string_table_name);
+  template <typename It>
+  std::pair<int, size_t> find_next_start_of_function(It begin, It end);
+  std::vector<NamedSymbol> fake_static_symbols_factory();
   std::vector<NamedSymbol> static_symbols_factory();
   std::vector<NamedSymbol> dynamic_symbols_factory();
   std::vector<std::string> strings_factory();
@@ -56,4 +60,13 @@ private:
   std::vector<NamedSymbol> _static_symbols;
   std::vector<NamedSymbol> _dynamic_symbols;
   std::vector<std::string> _strings;
+
+private:
+  static constexpr std::string_view start_of_function_instruction = "endbr64";
+  static constexpr std::string_view code_section_name = ".text";
+  static constexpr std::string_view static_symbol_section_name = ".symtab";
+  static constexpr std::string_view static_symbol_name_section_name = ".strtab";
+  static constexpr std::string_view dynamic_symbol_section_name = ".dynsym";
+  static constexpr std::string_view dynamic_symbol_name_section_name =
+      ".dynstr";
 };

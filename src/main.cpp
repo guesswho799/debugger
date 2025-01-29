@@ -37,23 +37,23 @@ std::shared_ptr<AppState> parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-  auto app_state = parse_args(argc, argv);
-  auto code_tab = std::make_shared<Code>(app_state);
-  auto file_tab = std::make_shared<File>(app_state, code_tab);
-  auto function_tab = std::make_shared<Function>(app_state, code_tab);
-  auto string_tab = std::make_shared<String>(app_state);
-  auto multi_trace_tab = std::make_shared<MultiTrace>(app_state);
-  auto single_trace_tab = std::make_shared<SingleTrace>(app_state, code_tab);
-  TabController tab_controller{app_state,       code_tab,   file_tab,
-                               function_tab,    string_tab, multi_trace_tab,
-                               single_trace_tab};
-
-  app_state->screen.SetCursor(
-      ftxui::Screen::Cursor(0, 0, ftxui::Screen::Cursor::Hidden));
-  if (!app_state->binary_path.empty())
-    code_tab->update_code();
-
   try {
+    auto app_state = parse_args(argc, argv);
+    auto code_tab = std::make_shared<Code>(app_state);
+    auto file_tab = std::make_shared<File>(app_state, code_tab);
+    auto function_tab = std::make_shared<Function>(app_state, code_tab);
+    auto string_tab = std::make_shared<String>(app_state);
+    auto multi_trace_tab = std::make_shared<MultiTrace>(app_state);
+    auto single_trace_tab = std::make_shared<SingleTrace>(app_state, code_tab);
+    TabController tab_controller{app_state,       code_tab,   file_tab,
+                                 function_tab,    string_tab, multi_trace_tab,
+                                 single_trace_tab};
+
+    app_state->screen.SetCursor(
+        ftxui::Screen::Cursor(0, 0, ftxui::Screen::Cursor::Hidden));
+    if (!app_state->binary_path.empty())
+      code_tab->update_code();
+
     app_state->screen.Loop(tab_controller.get_logic());
   } catch (const std::exception &exception) {
     std::cout << "critical exception caught: " << exception.what() << std::endl;

@@ -43,16 +43,3 @@ private:
   Status status;
 };
 
-class NonCriticalException : public std::exception {
-public:
-  NonCriticalException(Status msg) : status(msg) {}
-
-  const char *what() const throw() {
-    std::string output = std::to_string(static_cast<int>(status));
-    std::cout << static_cast<int>(status);
-    return "";
-  }
-
-private:
-  Status status;
-};
