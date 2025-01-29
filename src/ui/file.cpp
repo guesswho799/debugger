@@ -82,8 +82,8 @@ ftxui::Component File::_generate_logic() {
                _state.open_file_selector++;
              if (_state.open_file_selector < 0)
                _state.open_file_selector = 0;
-             const auto files_size =
-                 _state.files.end() - _state.files.begin() - 1;
+             const int files_size =
+                 static_cast<int>(_state.files.end() - _state.files.begin() - 1);
              if (_state.open_file_selector > files_size)
                _state.open_file_selector = files_size;
              if (event == ftxui::Event::Return) {

@@ -140,7 +140,7 @@ ftxui::Component TabController::_generate_logic() {
                                          ->static_debugger.value()
                                          .get_function_code_by_name(
                                              get<AppState>()->function_name);
-               const uint32_t assembly_size = assembly.end() - assembly.begin();
+               const auto assembly_size = static_cast<uint32_t>(assembly.end() - assembly.begin());
                const bool is_single_trace =
                    get<AppState>()->tab_selected == 1 and
                    get<AppState>()->execute_selected == 2;
