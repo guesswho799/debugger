@@ -1,8 +1,11 @@
 #include "elf_reader.hpp"
+#include "elf_header.hpp"
 #include "status.hpp"
 #include <algorithm>
 #include <cstdint>
+#include <format>
 #include <ranges>
+#include <utility>
 
 // constructors
 ElfReader::ElfReader(std::string file_name)
@@ -48,6 +51,15 @@ std::vector<NamedSymbol> ElfReader::get_dynamic_symbols() const {
 std::vector<std::string> ElfReader::get_strings() const { return _strings; }
 
 // filtered geters
+bool ElfReader::does_section_exist(const std::string_view &section_name) const {
+  for (const auto &section : _sections) {
+    if (section.name == section_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
 NamedSection
 ElfReader::get_section(const std::string_view &section_name) const {
   for (const auto &section : _sections) {
@@ -214,12 +226,80 @@ ElfReader::symbols_factory(const std::string_view &section_name,
   return named_symbols;
 }
 
+std::vector<NamedSymbol> ElfReader::fake_static_symbols_factory() {
+  if (!_file.is_open()) {
+    throw CriticalException(Status::elf_header__open_failed);
+  }
+
+  const NamedSection code_section = get_section(code_section_name);
+  _file.seekg(static_cast<long>(code_section.unloaded_offset));
+
+  std::vector<unsigned char> buffer(code_section.size);
+  _file.read(reinterpret_cast<char *>(buffer.data()), buffer.size());
+
+  Disassembler disassembler{};
+  const std::vector<Disassembler::Line> lines = disassembler.disassemble(
+      buffer.data(), buffer.size(), code_section.unloaded_offset, {});
+
+  const uint64_t file_offset_text_section = code_section.unloaded_offset;
+  const uint64_t entry_point = _header.entry_point_address;
+  const uint64_t virtual_address_text_section =
+      code_section.loaded_virtual_address;
+  std::vector<NamedSymbol> symbols{};
+  size_t text_section_offset = 0;
+  auto line = lines.begin();
+
+  while (line != lines.end()) {
+    const auto [amount_of_instructions, function_size] =
+        find_next_start_of_function(line, lines.end());
+    constexpr SymbolType symbol_type = SymbolType::function;
+    constexpr uint16_t section_index = 0;
+    const uint64_t virtual_function_address =
+        virtual_address_text_section + text_section_offset;
+    const uint64_t file_offset_function_address =
+        file_offset_text_section + text_section_offset;
+    const std::string function_name =
+        virtual_function_address != entry_point
+            ? std::format("function_{}", virtual_function_address)
+            : "_start";
+
+    symbols.emplace_back(function_name, symbol_type, section_index,
+                         file_offset_function_address, function_size);
+
+    text_section_offset += function_size;
+    line += amount_of_instructions;
+  }
+
+  return symbols;
+}
+
+template <typename It>
+std::pair<int, size_t> ElfReader::find_next_start_of_function(It begin,
+                                                              It end) {
+  int amount_of_instructions = 0;
+  size_t function_size = 0;
+  int amount_of_function_begin_passed = 0;
+  for (; begin != end; ++begin) {
+    if (begin->instruction == start_of_function_instruction)
+      if (++amount_of_function_begin_passed == 2)
+        break;
+
+    amount_of_instructions++;
+    function_size += begin->opcodes.end() - begin->opcodes.begin();
+  }
+  return std::make_pair(amount_of_instructions, function_size);
+}
+
 std::vector<NamedSymbol> ElfReader::static_symbols_factory() {
-  return symbols_factory(".symtab", ".strtab");
+  if (does_section_exist(static_symbol_section_name))
+    return symbols_factory(static_symbol_section_name,
+                           static_symbol_name_section_name);
+  return fake_static_symbols_factory();
 }
 
 std::vector<NamedSymbol> ElfReader::dynamic_symbols_factory() {
-  return symbols_factory(".dynsym", ".dynstr");
+  return symbols_factory(dynamic_symbol_section_name,
+                         dynamic_symbol_name_section_name);
 }
 
 std::vector<std::string> ElfReader::strings_factory() {
