@@ -8,7 +8,6 @@
 #include <ftxui/util/ref.hpp>
 
 #include "app_state.hpp"
-#include "status.hpp"
 #include "ui/code.hpp"
 #include "ui/file.hpp"
 #include "ui/function.hpp"

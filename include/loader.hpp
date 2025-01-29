@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstdint>
 #include <vector>
 
 #include "disassembler.hpp"
@@ -11,10 +12,10 @@
 namespace Loader {
 std::string convert_to_hex(uint64_t number);
 ftxui::Element get_opcodes(const Disassembler::Line &line);
-std::pair<int, int>
+std::pair<int, uint64_t>
 max_instruction_height(const std::vector<Disassembler::Line> &assembly,
                        uint64_t scroll_bar, bool is_single_trace);
-int max_instruction_width(const std::vector<Disassembler::Line> &assembly);
+size_t max_instruction_width(const std::vector<Disassembler::Line> &assembly);
 ftxui::Element
 load_instructions(const std::string &function_name,
                   const std::vector<Disassembler::Line> &assembly,

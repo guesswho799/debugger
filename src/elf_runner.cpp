@@ -144,8 +144,8 @@ void ElfRunner::_log_step() {
   std::array<StackElement, stack_size> stack{};
   if (base_stack != 0)
     for (int i = 0; i < stack_size; i++)
-      stack[i] = Ptrace::get_memory(_child_pid,
-                                    base_stack - (i * sizeof(StackElement)));
+      stack[i] = static_cast<StackElement>(Ptrace::get_memory(_child_pid,
+                                    base_stack - (i * sizeof(StackElement))));
   _runtime_stacks.emplace_back(base_stack, stack);
 
   int child_status = 0;

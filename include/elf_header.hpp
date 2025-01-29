@@ -1,7 +1,8 @@
 #pragma once
-#include <ostream>
 #include <bitset>
 #include <cstddef>
+#include <cstdint>
+#include <ostream>
 
 struct ElfHeader {
   std::byte magic[4];
@@ -14,8 +15,8 @@ struct ElfHeader {
   uint16_t instruction_set_architecture;
   uint32_t version2;
   uint64_t entry_point_address;
-  uint64_t header_table_adress;
-  uint64_t section_table_adress;
+  uint64_t header_table_address;
+  uint64_t section_table_address;
   std::byte flags[4];
   std::byte header_size[2];
   std::byte header_table_entry_size[2];

@@ -16,7 +16,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(FTXUI CAPSTONE)
 
-SET(CMAKE_CXX_FLAGS "-Wall -Wextra -O3")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+SET(CMAKE_CXX_FLAGS "-Wall -Wextra -Wconversion -Werror -O3")
 file(GLOB_RECURSE sources src/*.cpp)
 add_executable(${PROJECT_NAME} ${sources})
 

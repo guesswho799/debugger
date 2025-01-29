@@ -111,8 +111,9 @@ ftxui::Component Function::_generate_logic() {
           }
           if (event == ftxui::Event::ArrowDown or event == ftxui::Event::Tab) {
             _state.function_selector++;
-            const auto table_size = _state.function_table_content.end() -
-                                    _state.function_table_content.begin() - 1;
+            const auto table_size =
+                static_cast<int>(_state.function_table_content.end() -
+                                 _state.function_table_content.begin() - 1);
             if (_state.function_selector > table_size)
               _state.function_selector = table_size;
             return true;

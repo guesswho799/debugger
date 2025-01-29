@@ -1,14 +1,8 @@
 #include "loader.hpp"
 
-#include <cmath>
+#include <cstdint>
 #include <ranges>
 #include <sstream>
-#include <vector>
-
-#include "disassembler.hpp"
-#include "elf_reader.hpp"
-#include "elf_runner.hpp"
-#include <ftxui/dom/table.hpp>
 
 namespace Loader {
 std::string convert_to_hex(uint64_t number) {
@@ -46,41 +40,42 @@ ftxui::Element get_opcodes(const Disassembler::Line &line) {
   return ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
 }
 
-std::pair<int, int>
+std::pair<int, uint64_t>
 max_instruction_height(const std::vector<Disassembler::Line> &assembly,
                        uint64_t scroll_bar, bool is_single_trace) {
   int result = 0;
-  const size_t screen_height = ftxui::Terminal::Size().dimy;
-  const size_t main_display_height =
+  const auto screen_height = ftxui::Terminal::Size().dimy;
+  const uint64_t main_display_height =
       is_single_trace ? screen_height - 12 : screen_height - 6;
-  int height_counter = 0;
+  uint64_t height_counter = 0;
   constexpr float opcodes_per_line = 3;
 
   for (const auto &line : assembly | std::views::drop(scroll_bar)) {
-    const float amount_of_opcodes = line.opcodes.end() - line.opcodes.begin();
-    const float lines_of_opcodes =
-        std::ceil(amount_of_opcodes / opcodes_per_line);
+    const float amount_of_opcodes =
+        static_cast<float>(line.opcodes.end() - line.opcodes.begin());
+    const uint64_t lines_of_opcodes =
+        static_cast<uint64_t>(std::ceil(amount_of_opcodes / opcodes_per_line));
     if (height_counter + lines_of_opcodes >= main_display_height)
       break;
     height_counter += lines_of_opcodes;
     result++;
   }
 
-  const int lines_left = assembly.size() > main_display_height
-                             ? main_display_height - height_counter
-                             : 0;
+  const uint64_t lines_left = assembly.size() > main_display_height
+                                  ? main_display_height - height_counter
+                                  : 0;
   return std::make_pair(result, lines_left);
 }
 
-int
-max_instruction_width(const std::vector<Disassembler::Line> &assembly) {
-  int max_line_width = 0;
+size_t max_instruction_width(const std::vector<Disassembler::Line> &assembly) {
+  size_t max_line_width = 0;
 
   for (const auto &line : assembly) {
+    constexpr size_t opcodes_per_line = 3;
     const std::string address = convert_to_hex(line.address);
-    const float amount_of_opcodes = line.opcodes.end() - line.opcodes.begin();
-    const float opcodes_per_line = 3;
-    const int width =
+    const size_t amount_of_opcodes =
+        static_cast<size_t>(line.opcodes.end() - line.opcodes.begin());
+    const size_t width =
         address.length() + std::min(amount_of_opcodes, opcodes_per_line) * 2 +
         2 + line.instruction.length() + 1 + line.arguments.length() + 4;
     if (width > max_line_width)
@@ -92,8 +87,7 @@ max_instruction_width(const std::vector<Disassembler::Line> &assembly) {
 ftxui::Element
 load_instructions(const std::string &function_name,
                   const std::vector<Disassembler::Line> &assembly,
-                  uint64_t scroll_bar,
-                  std::optional<uint64_t> line_selected) {
+                  uint64_t scroll_bar, std::optional<uint64_t> line_selected) {
   auto block =
       ftxui::vbox({ftxui::hbox({ftxui::text("Instructions"), ftxui::separator(),
                                 ftxui::text(function_name) | ftxui::bold}),
@@ -114,17 +108,16 @@ load_instructions(const std::string &function_name,
     block = ftxui::vbox(block, content);
   }
 
-  for (int i = 1; i < lines_left; i++)
+  for (size_t i = 1; i < lines_left; i++)
     block = ftxui::vbox(block, ftxui::text(""));
 
   return block | ftxui::border |
          ftxui::size(ftxui::WIDTH, ftxui::EQUAL,
-                     max_instruction_width(assembly)) |
+                     static_cast<int>(max_instruction_width(assembly))) |
          ftxui::center;
 }
 
-ftxui::Element
-load_register_window(const struct user_regs_struct &registers) {
+ftxui::Element load_register_window(const struct user_regs_struct &registers) {
   std::vector<std::vector<std::string>> table_content{
       {"rax ", convert_to_hex(registers.rax)},
       {"rbx ", convert_to_hex(registers.rbx)},
@@ -174,13 +167,12 @@ load_stack_window(const ElfRunner::RuntimeStack &stack_metadata) {
          ftxui::size(ftxui::HEIGHT, ftxui::EQUAL, 12) | ftxui::border;
 }
 
-ftxui::Element
-load_trace_player(const ElfRunner::RuntimeRegs &runtime_data,
-                  uint64_t code_selector) {
-  const float data_size = runtime_data.end() - runtime_data.begin() - 1;
+ftxui::Element load_trace_player(const ElfRunner::RuntimeRegs &runtime_data,
+                                 uint64_t code_selector) {
+  const float data_size = static_cast<float>(runtime_data.end() - runtime_data.begin() - 1);
   return ftxui::vbox(
              {ftxui::text("Player"), ftxui::separator(),
-              ftxui::gauge(code_selector / data_size) |
+              ftxui::gauge(static_cast<float>(code_selector) / data_size) |
                   ftxui::color(ftxui::Color::White),
               ftxui::text("<-- " + std::to_string(code_selector) + "/" +
                           std::to_string(static_cast<uint64_t>(data_size)) +
