@@ -30,6 +30,7 @@ public:
   bool does_section_exist(const std::string_view &section_name) const;
   NamedSection get_section(const std::string_view &section_name) const;
   NamedSection get_section(std::size_t section_index) const;
+  size_t get_section_index(const std::string_view &section_name) const;
   NamedSymbol get_function(std::string name) const;
   std::vector<NamedSymbol> get_functions() const;
   std::vector<NamedSymbol> get_implemented_functions() const;
