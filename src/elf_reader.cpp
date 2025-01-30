@@ -3,8 +3,8 @@
 #include "status.hpp"
 #include <algorithm>
 #include <cstdint>
-#include <format>
 #include <ranges>
+#include <sstream>
 #include <utility>
 
 // constructors
@@ -66,6 +66,19 @@ ElfReader::get_section(const std::string_view &section_name) const {
     if (section.name == section_name) {
       return section;
     }
+  }
+
+  throw CriticalException(Status::elf_header__section_not_found);
+}
+
+size_t
+ElfReader::get_section_index(const std::string_view &section_name) const {
+  size_t index = 0;
+  for (const auto &section : _sections) {
+    if (section.name == section_name) {
+      return index;
+    }
+    index++;
   }
 
   throw CriticalException(Status::elf_header__section_not_found);
@@ -133,9 +146,9 @@ ElfReader::get_function_code(NamedSymbol function) const {
     throw CriticalException(Status::elf_header__open_failed);
   }
 
-  uint64_t offset = function.value -
-                    _sections[function.section_index].loaded_virtual_address +
-                    _sections[function.section_index].unloaded_offset;
+  uint64_t offset = function.value +
+                    _sections[function.section_index].unloaded_offset -
+                    _sections[function.section_index].loaded_virtual_address;
   _file.seekg(static_cast<long>(offset));
 
   std::vector<unsigned char> buffer(function.size);
@@ -241,30 +254,25 @@ std::vector<NamedSymbol> ElfReader::fake_static_symbols_factory() {
   const std::vector<Disassembler::Line> lines = disassembler.disassemble(
       buffer.data(), buffer.size(), code_section.unloaded_offset, {});
 
-  const uint64_t file_offset_text_section = code_section.unloaded_offset;
   const uint64_t entry_point = _header.entry_point_address;
-  const uint64_t virtual_address_text_section =
-      code_section.loaded_virtual_address;
   std::vector<NamedSymbol> symbols{};
   size_t text_section_offset = 0;
+  constexpr SymbolType symbol_type = SymbolType::function;
+  const size_t section_index = get_section_index(code_section_name);
   auto line = lines.begin();
 
   while (line != lines.end()) {
     const auto [amount_of_instructions, function_size] =
         find_next_start_of_function(line, lines.end());
-    constexpr SymbolType symbol_type = SymbolType::function;
-    constexpr uint16_t section_index = 0;
-    const uint64_t virtual_function_address =
-        virtual_address_text_section + text_section_offset;
-    const uint64_t file_offset_function_address =
-        file_offset_text_section + text_section_offset;
+  const uint64_t virtual_function_address =
+      code_section.loaded_virtual_address + text_section_offset;
+    std::ostringstream symbol_name;
+    symbol_name << "function_" << std::hex << virtual_function_address;
     const std::string function_name =
-        virtual_function_address != entry_point
-            ? std::format("function_{}", virtual_function_address)
-            : "_start";
+        virtual_function_address != entry_point ? symbol_name.str() : "_start";
 
     symbols.emplace_back(function_name, symbol_type, section_index,
-                         file_offset_function_address, function_size);
+                         virtual_function_address, function_size);
 
     text_section_offset += function_size;
     line += amount_of_instructions;

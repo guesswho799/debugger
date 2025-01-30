@@ -65,16 +65,6 @@ struct NamedSection {
   uint32_t extra_information;
   uint64_t required_alinment;
   uint64_t entry_size;
-
-  friend std::ostream &operator<<(std::ostream &stream, NamedSection section) {
-    stream << "name: " << section.name;
-    stream << ", type: " << std::bitset<8>(static_cast<int>(section.type));
-    stream << ", address virtual: " << std::hex
-           << section.loaded_virtual_address;
-    stream << ", address unloaded: " << std::hex << section.unloaded_offset;
-    stream << ", size: " << std::hex << section.size;
-    return stream;
-  }
 };
 
 struct ElfSymbol {
