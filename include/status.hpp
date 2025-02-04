@@ -19,6 +19,7 @@ enum class Status : int {
   elf_runner__child_died,
   elf_runner__child_finished,
   elf_runner__step_failed,
+  elf_runner__base_address_parse_failed,
   ptrace__peek_regs_failed,
   ptrace__poke_regs_failed,
   ptrace__peek_code_failed,
@@ -29,17 +30,10 @@ enum class Status : int {
   disassembler__parse_failed,
 };
 
-class CriticalException : public std::exception {
-public:
-  CriticalException(Status msg) : status(msg) {}
-
-  const char *what() const throw() {
-    std::string output = std::to_string(static_cast<int>(status));
-    std::cout << static_cast<int>(status);
-    return "";
-  }
+struct CriticalException : std::exception {
+  CriticalException(Status status) : _status(status) {}
+  int get() const { return static_cast<int>(_status); }
 
 private:
-  Status status;
+  Status _status;
 };
-

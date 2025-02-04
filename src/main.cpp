@@ -8,6 +8,7 @@
 #include <ftxui/util/ref.hpp>
 
 #include "app_state.hpp"
+#include "status.hpp"
 #include "ui/code.hpp"
 #include "ui/file.hpp"
 #include "ui/function.hpp"
@@ -23,12 +24,7 @@ std::shared_ptr<AppState> parse_args(int argc, char *argv[]) {
     result->in_search_mode = true;
   }
   if (argc >= 2) {
-    result->binary_path = argv[1];
-    result->static_debugger = std::optional<ElfReader>(result->binary_path);
-    result->dynamic_debugger = std::optional<ElfRunner>(result->binary_path);
-  }
-  if (argc < 3) {
-    result->function_name = "_start";
+    result->update_binary(argv[1]);
   }
   if (argc >= 3) {
     result->function_name = argv[2];
@@ -55,8 +51,8 @@ int main(int argc, char *argv[]) {
       code_tab->update_code();
 
     app_state->screen.Loop(tab_controller.get_logic());
-  } catch (const std::exception &exception) {
-    std::cout << "critical exception caught: " << exception.what() << std::endl;
+  } catch (const CriticalException &exception) {
+    std::cout << "critical exception caught: " << exception.get() << std::endl;
     return 1;
   }
 
