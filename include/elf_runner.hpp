@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <sys/types.h>
 #include <sys/user.h>
 #include <vector>
 
@@ -31,22 +32,28 @@ public:
   ~ElfRunner();
 
 public:
-  void run_functions(const std::vector<NamedSymbol> &functions);
+  void run_functions(const std::vector<NamedSymbol> &functions,
+                     uint64_t base_address);
   void run_function(const NamedSymbol &function,
-                    const std::vector<Address> &calls);
+                    const std::vector<Address> &calls, uint64_t base_address);
   void reset();
 
   bool is_dead() const;
+  uint64_t get_base_address(bool is_position_independent);
   RuntimeArguments get_runtime_arguments() const;
   RuntimeRegs get_runtime_regs() const;
   RuntimeStacks get_runtime_stacks() const;
+  pid_t get_pid() const;
 
 private:
-  pid_t run(std::string file_name);
+  pid_t _run(std::string file_name);
   void _update_is_dead(int child_status);
-  void _log_step();
+  void _log_step(uint64_t base_address);
   void _log_function_arguments(const std::vector<NamedSymbol> &functions,
                                Address function_address);
+  int _get_child_status();
+  bool _check_child_status(int child_status);
+  static uint64_t _hex_to_int(const std::string &s);
 
 private:
   std::string _file_name;

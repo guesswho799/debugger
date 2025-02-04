@@ -1,43 +1,44 @@
 #include "loader.hpp"
 
+#include <cmath>
 #include <cstdint>
+#include <format>
+#include <iomanip>
 #include <ranges>
 #include <sstream>
 
 namespace Loader {
 std::string convert_to_hex(uint64_t number) {
-  std::ostringstream stream;
-  stream << "0x" << std::hex << number;
-  return stream.str();
+  return std::format("0x{:x}", number);
 }
 
 ftxui::Element get_opcodes(const Disassembler::Line &line) {
-  auto opcodes_as_box = ftxui::vbox({});
-  std::ostringstream opcodes_stream;
-  const int opcodes_per_line = 3;
-  for (unsigned int i = 0; i < line.opcodes.size(); i++) {
-    if (i % opcodes_per_line == 0 && i != 0) {
-      opcodes_as_box =
-          ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
-      opcodes_stream.str("");
-      opcodes_stream.clear();
+  const size_t amount_of_opcodes = line.opcodes.end() - line.opcodes.begin();
+  const size_t number_of_lines =
+      static_cast<size_t>(std::ceil((static_cast<float>(amount_of_opcodes)) /
+                                    static_cast<float>(opcodes_per_line)));
+  auto result = ftxui::vbox({});
+
+  for (size_t line_index = 0; line_index < number_of_lines; line_index++) {
+    std::ostringstream opcodes_stream;
+    for (size_t opcode_index = 0; opcode_index < opcodes_per_line;
+         opcode_index++) {
+      const size_t index = line_index * opcodes_per_line + opcode_index;
+
+      // Display opcode if exists
+      if (index < amount_of_opcodes)
+        opcodes_stream << std::hex << std::setfill('0') << std::setw(2)
+                       << line.opcodes[index];
+      // If out of opcodes, fill with whitespace
+      else
+        opcodes_stream << "  ";
+      // Space between opcodes
+      if (opcode_index != opcodes_per_line - 1)
+        opcodes_stream << ' ';
     }
-    if (line.opcodes[i] < 16)
-      opcodes_stream << '0';
-    opcodes_stream << std::hex << line.opcodes[i];
-    if ((i + 1) % opcodes_per_line != 0 or i == 0)
-      opcodes_stream << ' ';
+    result = ftxui::vbox({result, ftxui::text(opcodes_stream.str())});
   }
-  if ((line.opcodes.end() - line.opcodes.begin()) % opcodes_per_line != 0) {
-    for (unsigned int i = 1;
-         i < (opcodes_per_line - ((line.opcodes.end() - line.opcodes.begin()) %
-                                  opcodes_per_line)) *
-                 opcodes_per_line;
-         i++) {
-      opcodes_stream << ' ';
-    }
-  }
-  return ftxui::vbox({opcodes_as_box, ftxui::text(opcodes_stream.str())});
+  return result;
 }
 
 std::pair<int, uint64_t>
@@ -48,7 +49,6 @@ max_instruction_height(const std::vector<Disassembler::Line> &assembly,
   const uint64_t main_display_height =
       is_single_trace ? screen_height - 12 : screen_height - 6;
   uint64_t height_counter = 0;
-  constexpr float opcodes_per_line = 3;
 
   for (const auto &line : assembly | std::views::drop(scroll_bar)) {
     const float amount_of_opcodes =
@@ -71,7 +71,6 @@ size_t max_instruction_width(const std::vector<Disassembler::Line> &assembly) {
   size_t max_line_width = 0;
 
   for (const auto &line : assembly) {
-    constexpr size_t opcodes_per_line = 3;
     const std::string address = convert_to_hex(line.address);
     const size_t amount_of_opcodes =
         static_cast<size_t>(line.opcodes.end() - line.opcodes.begin());
@@ -169,7 +168,8 @@ load_stack_window(const ElfRunner::RuntimeStack &stack_metadata) {
 
 ftxui::Element load_trace_player(const ElfRunner::RuntimeRegs &runtime_data,
                                  uint64_t code_selector) {
-  const float data_size = static_cast<float>(runtime_data.end() - runtime_data.begin() - 1);
+  const float data_size =
+      static_cast<float>(runtime_data.end() - runtime_data.begin() - 1);
   return ftxui::vbox(
              {ftxui::text("Player"), ftxui::separator(),
               ftxui::gauge(static_cast<float>(code_selector) / data_size) |

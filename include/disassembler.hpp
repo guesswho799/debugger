@@ -9,7 +9,7 @@
 class Disassembler {
 public:
   struct Line {
-    std::vector<unsigned int> opcodes;
+    std::vector<uint16_t> opcodes;
     std::string instruction;
     std::string arguments;
     uint64_t address;
@@ -20,20 +20,20 @@ public:
   Disassembler();
   ~Disassembler();
 
-  std::vector<Line> disassemble(uint8_t *input_buffer, size_t input_buffer_size,
+  std::vector<Line> disassemble(const std::vector<uint8_t> &input_buffer,
                                 uint64_t base_address,
                                 const std::vector<NamedSymbol> &static_symbols);
 
 private:
-  static uint64_t hex_to_decimal(const std::string &number);
-  static bool is_hex_number(const std::string &number);
-  static bool
-  is_resolvable_call_instruction(const std::string &instruction_operation,
+  static bool _is_resolvable_call_instruction(const std::string &instruction_operation,
                                  const std::string &instruction_argument);
   static std::string
-  resolve_address(const std::vector<NamedSymbol> &static_symbols,
+  _resolve_address(const std::vector<NamedSymbol> &static_symbols,
                   uint64_t address);
-  static bool is_jump(std::string instruction);
+  static uint64_t _hex_to_decimal(const std::string &number);
+  static bool _is_hex_number(const std::string &number);
+  static bool _is_call_instruction(const std::string &s);
+  static bool _is_jump(std::string instruction);
 
 private:
   csh _get_handler();

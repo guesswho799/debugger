@@ -10,6 +10,7 @@
 #include <ftxui/dom/table.hpp>
 
 namespace Loader {
+static constexpr size_t opcodes_per_line = 3;
 std::string convert_to_hex(uint64_t number);
 ftxui::Element get_opcodes(const Disassembler::Line &line);
 std::pair<int, uint64_t>

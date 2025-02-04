@@ -1,7 +1,9 @@
 #pragma once
 
+#include <cstdint>
 #include <fstream>
 #include <string>
+#include <sys/types.h>
 #include <vector>
 
 #include "disassembler.hpp"
@@ -27,14 +29,15 @@ public:
 
   // filtered geters
 public:
+  bool is_position_independent() const;
   bool does_section_exist(const std::string_view &section_name) const;
   NamedSection get_section(const std::string_view &section_name) const;
   NamedSection get_section(std::size_t section_index) const;
   size_t get_section_index(const std::string_view &section_name) const;
-  NamedSymbol get_function(std::string name) const;
+  NamedSymbol get_function(std::string name, uint64_t base_address) const;
   std::vector<NamedSymbol> get_functions() const;
-  std::vector<NamedSymbol> get_implemented_functions() const;
-  std::vector<uint64_t> get_function_calls(std::string name) const;
+  std::vector<NamedSymbol> get_implemented_functions(uint64_t base_address) const;
+  std::vector<uint64_t> get_function_calls(std::string name, uint64_t base_address) const;
   std::vector<Disassembler::Line> get_function_code(NamedSymbol function) const;
   std::vector<Disassembler::Line>
   get_function_code_by_name(std::string name) const;
@@ -52,6 +55,7 @@ private:
   std::vector<NamedSymbol> static_symbols_factory();
   std::vector<NamedSymbol> dynamic_symbols_factory();
   std::vector<std::string> strings_factory();
+  bool _is_valid_string(const std::string &s);
 
 private:
   mutable std::ifstream _file;

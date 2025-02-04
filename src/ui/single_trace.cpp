@@ -18,25 +18,24 @@ SingleTrace::State_t SingleTrace::_generate_initial_state() {
 
 ftxui::Component SingleTrace::_generate_logic() {
   return ftxui::Renderer([&] {
-    if (get<AppState>()->dynamic_debugger.value().is_dead() or
+    if (get<AppState>()->dynamic_debugger->is_dead() or
         _state.view_result == true) {
       const auto assembly =
-          get<AppState>()->static_debugger.value().get_function_code_by_name(
+          get<AppState>()->static_debugger->get_function_code_by_name(
               get<AppState>()->function_name);
-      const auto registers = get<AppState>()
-                                 ->dynamic_debugger.value()
-                                 .get_runtime_regs()[_state.selector];
+      const auto registers =
+          get<AppState>()
+              ->dynamic_debugger->get_runtime_regs()[_state.selector];
       const auto code_block =
           Loader::load_instructions(get<AppState>()->function_name, assembly,
                                     get<Code>()->get_selector(), registers.rip);
       const auto trace_player = Loader::load_trace_player(
-          get<AppState>()->dynamic_debugger.value().get_runtime_regs(),
+          get<AppState>()->dynamic_debugger->get_runtime_regs(),
           _state.selector);
       const auto register_window = Loader::load_register_window(registers);
-      const auto stack_window =
-          Loader::load_stack_window(get<AppState>()
-                                        ->dynamic_debugger.value()
-                                        .get_runtime_stacks()[_state.selector]);
+      const auto stack_window = Loader::load_stack_window(
+          get<AppState>()
+              ->dynamic_debugger->get_runtime_stacks()[_state.selector]);
       return ftxui::vbox(
                  {trace_player,
                   ftxui::hbox({code_block,
@@ -47,13 +46,7 @@ ftxui::Component SingleTrace::_generate_logic() {
     }
 
     get<AppState>()->refresh_screen();
-    const auto function = get<AppState>()->static_debugger.value().get_function(
-        get<AppState>()->function_name);
-    const auto function_calls =
-        get<AppState>()->static_debugger.value().get_function_calls(
-            get<AppState>()->function_name);
-    get<AppState>()->dynamic_debugger.value().run_function(function,
-                                                           function_calls);
+    get<AppState>()->run_function();
 
     std::ostringstream function_status;
     function_status << "Selected function (" << get<AppState>()->function_name
