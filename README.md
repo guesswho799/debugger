@@ -19,7 +19,7 @@ It displays all information in tui format and is controlled only by simple keybo
 
 ## How to build test binary
 ```console
-g++ -no-pie main.cpp -oprogram
+g++ main.cpp -oprogram
 ```
 ## How to build debugger
 ```console
