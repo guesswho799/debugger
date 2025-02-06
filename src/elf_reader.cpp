@@ -55,7 +55,7 @@ std::vector<NamedSymbol> ElfReader::get_dynamic_symbols() const {
   return _dynamic_symbols;
 }
 
-std::vector<std::string> ElfReader::get_strings() const { return _strings; }
+std::vector<ElfString> ElfReader::get_strings() const { return _strings; }
 
 // filtered geters
 bool ElfReader::is_position_independent() const {
@@ -103,12 +103,13 @@ NamedSection ElfReader::get_section(std::size_t section_index) const {
   return _sections[section_index];
 }
 
-NamedSymbol ElfReader::get_function(std::string name, uint64_t base_address) const {
+NamedSymbol ElfReader::get_function(std::string name,
+                                    uint64_t base_address) const {
   const auto function_filter = [&](const NamedSymbol &symbol) {
     return symbol.type & SymbolType::function && symbol.name == name;
   };
-  auto iterator = std::find_if(_static_symbols.begin(),
-                                     _static_symbols.end(), function_filter);
+  auto iterator = std::find_if(_static_symbols.begin(), _static_symbols.end(),
+                               function_filter);
   if (iterator == _static_symbols.end())
     throw CriticalException(Status::elf_header__function_not_found);
 
@@ -141,28 +142,15 @@ ElfReader::get_implemented_functions(uint64_t base_address) const {
     functions.push_back(symbol);
   }
 
-  const auto address_modifier = [base_address](NamedSymbol &symbol) {
-    symbol.value += base_address;
-  };
   if (base_address != 0)
-    std::for_each(functions.begin(), functions.end(), address_modifier);
-
-  std::ofstream f;
-  f.open("a", std::ios_base::app);
-  std::stringstream s;
-  s << std::hex << base_address;
-  f << "base_address: 0x" << s.str() << std::endl;
-  for (const NamedSymbol &s : functions) {
-    std::stringstream ss;
-    ss << std::hex << s.value;
-    f << s.name << ": 0x" << ss.str() << std::endl;
-  }
-  f.close();
+    for (auto &function : functions)
+      function.value += base_address;
 
   return functions;
 }
 
-std::vector<uint64_t> ElfReader::get_function_calls(std::string name, uint64_t base_address) const {
+std::vector<uint64_t>
+ElfReader::get_function_calls(std::string name, uint64_t base_address) const {
   std::vector<Disassembler::Line> lines = get_function_code_by_name(name);
   std::vector<uint64_t> calls;
   constexpr uint64_t CALL_OPCODE = 0xE8;
@@ -170,7 +158,7 @@ std::vector<uint64_t> ElfReader::get_function_calls(std::string name, uint64_t b
 
   for (uint64_t i = 0; i < amount_of_lines; i++) {
     if (lines[i].opcodes[0] == CALL_OPCODE and i < amount_of_lines - 1)
-      calls.push_back(lines[i + 1].address+base_address);
+      calls.push_back(lines[i + 1].address + base_address);
   }
   return calls;
 }
@@ -190,7 +178,8 @@ ElfReader::get_function_code(NamedSymbol function) const {
   _file.read(reinterpret_cast<char *>(buffer.data()), buffer.size());
 
   Disassembler disassembler{};
-  return disassembler.disassemble(buffer, function.value, get_static_symbols());
+  return disassembler.disassemble(buffer, function.value, get_static_symbols(),
+                                  get_strings());
 }
 
 std::vector<Disassembler::Line>
@@ -286,7 +275,7 @@ std::vector<NamedSymbol> ElfReader::fake_static_symbols_factory() {
 
   Disassembler disassembler{};
   const std::vector<Disassembler::Line> lines =
-      disassembler.disassemble(buffer, code_section.unloaded_offset, {});
+      disassembler.disassemble(buffer, code_section.unloaded_offset, {}, {});
 
   const size_t section_index = get_section_index(code_section_name);
   const uint64_t section_address = code_section.loaded_virtual_address;
@@ -343,38 +332,58 @@ std::vector<NamedSymbol> ElfReader::dynamic_symbols_factory() {
                          dynamic_symbol_name_section_name);
 }
 
-std::vector<std::string> ElfReader::strings_factory() {
+std::vector<ElfString> ElfReader::strings_factory() {
   if (!_file.is_open()) {
     throw CriticalException(Status::elf_header__open_failed);
   }
 
   const NamedSection string_section = get_section(".rodata");
   _file.seekg(static_cast<long>(string_section.unloaded_offset));
-  std::vector<std::string> strings;
+  std::vector<ElfString> strings;
   while (static_cast<uint64_t>(_file.tellg()) <
          string_section.unloaded_offset + string_section.size) {
-    std::string s;
-    std::getline(_file, s, '\0');
-    if (_is_valid_string(s))
-      strings.push_back(s);
+    const auto address = static_cast<uint64_t>(_file.tellg());
+    const auto value = get_next_string(string_section);
+    if (_is_valid_string(value)) {
+      std::string v(value.begin(), value.end());
+      strings.emplace_back(v, address);
+    }
   }
 
   return strings;
 }
 
-bool ElfReader::_is_valid_string(const std::string &s) {
-  if (s.length() == 0)
+std::vector<char>
+ElfReader::get_next_string(const NamedSection &string_section) {
+  char byte_read;
+  std::vector<char> result;
+  while (static_cast<uint64_t>(_file.tellg()) <
+         string_section.unloaded_offset + string_section.size) {
+    _file.read(reinterpret_cast<char *>(&byte_read), sizeof byte_read);
+
+    if (byte_read == 0)
+      break;
+
+    result.push_back(byte_read);
+  }
+  return result;
+}
+
+bool ElfReader::_is_valid_string(const std::vector<char> &s) {
+  if (s.size() == 0)
     return false;
 
-  const bool isnt_ascii = std::any_of(s.begin(), s.end(), [](char character) {
-    return !std::isprint(character);
-  });
-  if (isnt_ascii)
-    return false;
+  bool is_all_whitespace = true;
+  for (const auto &character : s) {
+    if (!std::isprint(character) and character != '\n')
+      return false;
 
-  const bool is_whitespace = std::all_of(
-      s.begin(), s.end(), [](char character) { return isspace(character); });
-  if (is_whitespace)
+    if (is_all_whitespace) {
+      is_all_whitespace = isspace(character);
+    }
+  }
+
+  if (is_all_whitespace)
     return false;
 
   return true;

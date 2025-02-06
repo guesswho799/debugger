@@ -1,11 +1,13 @@
 #include "loader.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <format>
 #include <iomanip>
 #include <ranges>
 #include <sstream>
+#include <string>
 
 namespace Loader {
 std::string convert_to_hex(uint64_t number) {
@@ -191,14 +193,29 @@ load_function_table(const ElfReader &static_debugger) {
   return function_table_info;
 }
 
-ftxui::Element load_strings(const ElfReader &static_debugger) {
-  auto string_tab_content =
-      ftxui::vbox({ftxui::text("strings"), ftxui::separator()});
-  std::vector<std::string> strings = static_debugger.get_strings();
-  for (const auto &item : strings) {
-    string_tab_content = ftxui::vbox({string_tab_content, ftxui::text(item)});
+ftxui::Element load_strings(const std::vector<ElfString> &strings) {
+  if (strings.empty())
+    return ftxui::vbox({ftxui::text("strings"), ftxui::separator(),
+                        ftxui::text("no strings...")});
+
+  std::vector<std::vector<std::string>> table_content{{"value", "address"}};
+  const auto max_string_size =
+      static_cast<size_t>(ftxui::Terminal::Size().dimx - 10);
+  for (const auto &s : strings) {
+    if (s.value.size() < max_string_size)
+      table_content.push_back({s.value, convert_to_hex(s.address)});
+    else
+      table_content.push_back({s.value.substr(0, max_string_size - 3) + "...",
+                               convert_to_hex(s.address)});
   }
-  return string_tab_content;
+
+  auto table = ftxui::Table(table_content);
+  table.SelectRow(0).Decorate(ftxui::bold);
+  auto content = table.SelectRows(1, -1);
+  content.DecorateCellsAlternateRow(ftxui::bgcolor(ftxui::Color::Default), 2, 0);
+  content.DecorateCellsAlternateRow(ftxui::bgcolor(ftxui::Color::Grey11), 2, 1);
+  return ftxui::vbox(
+      {ftxui::text("strings"), ftxui::separator(), table.Render()});
 }
 
 ftxui::Element

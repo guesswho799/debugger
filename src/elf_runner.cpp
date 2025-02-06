@@ -217,7 +217,7 @@ ElfRunner::RuntimeStacks ElfRunner::get_runtime_stacks() const {
 pid_t ElfRunner::get_pid() const { return _child_pid; }
 
 uint64_t ElfRunner::_hex_to_int(const std::string &s) {
-  uint64_t result;
+  uint64_t result = 0;
   std::stringstream ss;
   ss << std::hex << s;
   ss >> result;

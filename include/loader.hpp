@@ -28,7 +28,7 @@ ftxui::Element load_trace_player(const ElfRunner::RuntimeRegs &runtime_data,
                                  uint64_t code_selector);
 std::vector<std::vector<std::string>>
 load_function_table(const ElfReader &static_debugger);
-ftxui::Element load_strings(const ElfReader &static_debugger);
+ftxui::Element load_strings(const std::vector<ElfString> &strings);
 ftxui::Element
 load_functions_arguments(const ElfRunner::RuntimeArguments runtime_value);
 } // namespace Loader
