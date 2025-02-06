@@ -3,8 +3,11 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <elf.h>
+#include <regex>
 #include <sstream>
 #include <string.h>
+#include <string>
 
 Disassembler::Disassembler() : _handle(_get_handler()) {
   cs_option(_handle, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
@@ -22,7 +25,8 @@ csh Disassembler::_get_handler() {
 std::vector<Disassembler::Line>
 Disassembler::disassemble(const std::vector<uint8_t> &input_buffer,
                           uint64_t base_address,
-                          const std::vector<NamedSymbol> &static_symbols) {
+                          const std::vector<NamedSymbol> &static_symbols,
+                          const std::vector<ElfString> &strings) {
   cs_insn *insn;
   const ssize_t count = cs_disasm(_handle, input_buffer.data(),
                                   input_buffer.size(), base_address, 0, &insn);
@@ -35,16 +39,23 @@ Disassembler::disassemble(const std::vector<uint8_t> &input_buffer,
     const std::vector<uint16_t> opcodes(buffer_iterator,
                                         buffer_iterator + insn[i].size);
     const std::string instruction_operation = insn[i].mnemonic;
+    const uint64_t instruction_address = insn[i].address;
+    const uint16_t instruction_size = insn[i].size;
     std::string instruction_argument = insn[i].op_str;
 
     if (_is_resolvable_call_instruction(instruction_operation,
                                         instruction_argument))
-      instruction_argument += _resolve_address(
+      instruction_argument += _resolve_symbol(
           static_symbols, _hex_to_decimal(instruction_argument));
+    if (_is_load_instruction(instruction_operation))
+      instruction_argument +=
+          _resolve_address(static_symbols, strings,
+                           instruction_address + instruction_size +
+                               _get_address(instruction_argument));
 
     result.emplace_back(opcodes, instruction_operation, instruction_argument,
-                        insn[i].address, _is_jump(instruction_operation));
-    buffer_iterator += insn[i].size;
+                        instruction_address, _is_jump(instruction_operation));
+    buffer_iterator += instruction_size;
   }
   cs_free(insn, count);
   return result;
@@ -60,7 +71,22 @@ bool Disassembler::_is_resolvable_call_instruction(
 
 std::string
 Disassembler::_resolve_address(const std::vector<NamedSymbol> &static_symbols,
+                               const std::vector<ElfString> &strings,
                                uint64_t address) {
+  const std::string symbol = _resolve_symbol(static_symbols, address);
+  if (!symbol.empty())
+    return symbol;
+
+  const std::string s = _resolve_string(strings, address);
+  if (!s.empty())
+    return s;
+
+  return " " + std::to_string(address);
+}
+
+std::string
+Disassembler::_resolve_symbol(const std::vector<NamedSymbol> &static_symbols,
+                              uint64_t address) {
   // TODO: optimize, unordered map instead of vector
   for (const auto &symbol : static_symbols) {
     if (symbol.value == address)
@@ -69,8 +95,37 @@ Disassembler::_resolve_address(const std::vector<NamedSymbol> &static_symbols,
   return "";
 }
 
-uint64_t Disassembler::_hex_to_decimal(const std::string &number) {
-  uint64_t result = 0;
+int64_t Disassembler::_get_address(const std::string &instruction_argument) {
+  const std::regex pattern(".*, \\[rip ([\\+-]) 0x([0-9a-f]+)\\]");
+  std::smatch match;
+  if (std::regex_match(instruction_argument, match, pattern)) {
+    int64_t address = _hex_to_decimal(match[2].str());
+    if (0 == strncmp(match[1].str().c_str(), "-", 1)) {
+      address *= -1;
+    }
+    return address;
+  }
+  return 0;
+}
+
+std::string Disassembler::_resolve_string(const std::vector<ElfString> &strings,
+                                          uint64_t address) {
+  constexpr size_t max_string_size = 10;
+  for (const auto &s : strings) {
+    if (s.address == address) {
+      std::string result = s.value;
+      if (result.size() > max_string_size) {
+        result.resize(max_string_size - 3);
+        result += "...";
+      }
+      return " \"" + result + "\"";
+    }
+  }
+  return "";
+}
+
+int64_t Disassembler::_hex_to_decimal(const std::string &number) {
+  int64_t result = 0;
   std::stringstream ss;
   ss << std::hex << number;
   ss >> result;
@@ -90,6 +145,10 @@ bool Disassembler::_is_hex_number(const std::string &s) {
 
 bool Disassembler::_is_call_instruction(const std::string &s) {
   return 0 == strncmp(s.c_str(), "call", 4);
+}
+
+bool Disassembler::_is_load_instruction(const std::string &s) {
+  return 0 == strncmp(s.c_str(), "lea", 3);
 }
 
 bool Disassembler::_is_jump(std::string instruction) {

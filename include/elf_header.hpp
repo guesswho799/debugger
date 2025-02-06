@@ -108,3 +108,8 @@ struct NamedSymbol {
     return stream;
   }
 };
+
+struct ElfString {
+  std::string value;
+  uint64_t address;
+};

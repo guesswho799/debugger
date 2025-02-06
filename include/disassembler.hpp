@@ -22,17 +22,26 @@ public:
 
   std::vector<Line> disassemble(const std::vector<uint8_t> &input_buffer,
                                 uint64_t base_address,
-                                const std::vector<NamedSymbol> &static_symbols);
+                                const std::vector<NamedSymbol> &static_symbols,
+                                const std::vector<ElfString> &strings);
 
 private:
-  static bool _is_resolvable_call_instruction(const std::string &instruction_operation,
-                                 const std::string &instruction_argument);
+  static bool
+  _is_resolvable_call_instruction(const std::string &instruction_operation,
+                                  const std::string &instruction_argument);
   static std::string
   _resolve_address(const std::vector<NamedSymbol> &static_symbols,
+                   const std::vector<ElfString> &strings, uint64_t address);
+  static std::string
+  _resolve_symbol(const std::vector<NamedSymbol> &static_symbols,
                   uint64_t address);
-  static uint64_t _hex_to_decimal(const std::string &number);
+  static int64_t _get_address(const std::string &instruction_argument);
+  static std::string _resolve_string(const std::vector<ElfString> &strings,
+                                     uint64_t address);
+  static int64_t _hex_to_decimal(const std::string &number);
   static bool _is_hex_number(const std::string &number);
   static bool _is_call_instruction(const std::string &s);
+  static bool _is_load_instruction(const std::string &s);
   static bool _is_jump(std::string instruction);
 
 private:

@@ -25,7 +25,7 @@ public:
   std::vector<NamedSection> get_sections() const;
   std::vector<NamedSymbol> get_static_symbols() const;
   std::vector<NamedSymbol> get_dynamic_symbols() const;
-  std::vector<std::string> get_strings() const;
+  std::vector<ElfString> get_strings() const;
 
   // filtered geters
 public:
@@ -36,8 +36,10 @@ public:
   size_t get_section_index(const std::string_view &section_name) const;
   NamedSymbol get_function(std::string name, uint64_t base_address) const;
   std::vector<NamedSymbol> get_functions() const;
-  std::vector<NamedSymbol> get_implemented_functions(uint64_t base_address) const;
-  std::vector<uint64_t> get_function_calls(std::string name, uint64_t base_address) const;
+  std::vector<NamedSymbol>
+  get_implemented_functions(uint64_t base_address) const;
+  std::vector<uint64_t> get_function_calls(std::string name,
+                                           uint64_t base_address) const;
   std::vector<Disassembler::Line> get_function_code(NamedSymbol function) const;
   std::vector<Disassembler::Line>
   get_function_code_by_name(std::string name) const;
@@ -54,8 +56,9 @@ private:
   std::vector<NamedSymbol> fake_static_symbols_factory();
   std::vector<NamedSymbol> static_symbols_factory();
   std::vector<NamedSymbol> dynamic_symbols_factory();
-  std::vector<std::string> strings_factory();
-  bool _is_valid_string(const std::string &s);
+  std::vector<ElfString> strings_factory();
+  std::vector<char> get_next_string(const NamedSection &string_section);
+  bool _is_valid_string(const std::vector<char> &s);
 
 private:
   mutable std::ifstream _file;
@@ -64,7 +67,7 @@ private:
   std::vector<NamedSection> _sections;
   std::vector<NamedSymbol> _static_symbols;
   std::vector<NamedSymbol> _dynamic_symbols;
-  std::vector<std::string> _strings;
+  std::vector<ElfString> _strings;
 
 private:
   static constexpr std::string_view start_of_function_instruction = "endbr64";
