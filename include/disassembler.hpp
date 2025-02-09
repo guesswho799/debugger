@@ -20,14 +20,21 @@ public:
   Disassembler();
   ~Disassembler();
 
-  std::vector<Line> disassemble(const std::vector<uint8_t> &input_buffer,
-                                uint64_t base_address,
-                                const std::vector<NamedSymbol> &static_symbols={},
-                                const std::vector<NamedSymbol> &dynamic_symbols={},
-                                const std::vector<ElfString> &strings={});
+  std::vector<Line>
+  disassemble(const std::vector<uint8_t> &input_buffer, uint64_t base_address,
+              const std::vector<NamedSymbol> &static_symbols = {},
+              const std::vector<NamedSymbol> &dynamic_symbols = {},
+              const std::vector<ElfString> &strings = {});
   static int64_t get_address(const std::string &instruction_argument);
 
 private:
+  static std::string
+  _generate_comment(const std::string &operation, const std::string &argument,
+                    uint64_t address,
+                    const std::vector<NamedSymbol> &static_symbols,
+                    const std::vector<NamedSymbol> &dynamic_symbols,
+                    const std::vector<ElfString> &strings);
+
   static bool
   _is_resolvable_call_instruction(const std::string &instruction_operation,
                                   const std::string &instruction_argument);
