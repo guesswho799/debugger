@@ -2,25 +2,28 @@
 #include "status.hpp"
 
 #include <algorithm>
+#include <bfd.h>
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <dis-asm.h>
 #include <elf.h>
 #include <regex>
 #include <sstream>
 #include <string.h>
 #include <string>
 
-Disassembler::Disassembler() : _handle(_get_handler()) {
-  cs_option(_handle, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
-}
+Disassembler::Disassembler() {}
 
-Disassembler::~Disassembler() { cs_close(&_handle); }
+Disassembler::~Disassembler() {}
 
-csh Disassembler::_get_handler() {
-  csh handle;
-  if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
-    throw Status::disassembler__open_failed;
-  return handle;
-}
+// csh Disassembler::_get_handler() {
+//   csh handle;
+//   if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
+//     throw Status::disassembler__open_failed;
+//   return handle;
+// }
 
 std::vector<Disassembler::Line>
 Disassembler::disassemble(const std::vector<uint8_t> &input_buffer,
@@ -28,40 +31,58 @@ Disassembler::disassemble(const std::vector<uint8_t> &input_buffer,
                           const std::vector<NamedSymbol> &static_symbols,
                           const std::vector<NamedSymbol> &dynamic_symbols,
                           const std::vector<ElfString> &strings) {
-  cs_insn *insn;
-  const ssize_t count = cs_disasm(_handle, input_buffer.data(),
-                                  input_buffer.size(), base_address, 0, &insn);
-  if (count < 0)
-    throw Status::disassembler__parse_failed;
-
-  auto buffer_iterator = input_buffer.begin();
+  if (static_symbols.size() or dynamic_symbols.size() or strings.size())
+    std::cout << " ";
+  GlobalData::stream_state ss{};
+  disassemble_info info{};
+  init_disassemble_info(&info, &ss, GlobalData::_dis_fprintf,
+                        GlobalData::_fprintf_styled);
+  info.arch = bfd_arch_i386;
+  info.mach = bfd_mach_x86_64;
+  info.disassembler_options = "intel";
+  info.buffer = const_cast<unsigned char *>(input_buffer.data());
+  info.buffer_vma = 0;
+  info.buffer_length = input_buffer.size();
+  disassemble_init_for_target(&info);
+  disassembler_ftype disassm =
+      disassembler(bfd_arch_i386, false, bfd_mach_x86_64, NULL);
+  auto opcode_iterator = input_buffer.begin();
   std::vector<Disassembler::Line> result;
-  for (int i = 0; i < count; i++) {
-    const std::vector<uint16_t> opcodes(buffer_iterator,
-                                        buffer_iterator + insn[i].size);
-    const std::string instruction_operation = insn[i].mnemonic;
-    const uint64_t instruction_address = insn[i].address;
-    const uint16_t instruction_size = insn[i].size;
-    std::string instruction_argument = insn[i].op_str;
 
-    if (_is_resolvable_call_instruction(instruction_operation,
-                                        instruction_argument))
-      instruction_argument +=
-          _resolve_symbol(static_symbols, dynamic_symbols,
-                          _hex_to_decimal(instruction_argument));
-    if (_is_load_instruction(instruction_operation))
-      instruction_argument +=
-          _resolve_address(static_symbols, dynamic_symbols, strings,
-                           instruction_address + instruction_size +
-                               get_address(instruction_argument));
+  while (opcode_iterator != input_buffer.end()) {
+    const uint64_t index = opcode_iterator - input_buffer.begin();
+    const size_t instruction_size = disassm(index, &info);
 
-    result.emplace_back(opcodes, instruction_operation, instruction_argument,
-                        instruction_address, _is_jump(instruction_operation));
-    buffer_iterator += instruction_size;
+    std::vector<uint16_t> opcodes;
+    opcodes.insert(opcodes.end(), opcode_iterator,
+                   opcode_iterator + instruction_size);
+
+    result.emplace_back(opcodes, GlobalData::buffer, "", base_address + index,
+                        _is_jump(GlobalData::buffer));
+    GlobalData::current_index = 0;
+    memset(GlobalData::buffer, 0, GlobalData::MAX_DISASSEMBLE_LINE);
+    opcode_iterator += instruction_size;
   }
-  cs_free(insn, count);
+
   return result;
 }
+// const std::vector<uint16_t> opcodes(buffer_iterator,
+//                                     buffer_iterator + insn[i].size);
+// const std::string instruction_operation = insn[i].mnemonic;
+// const uint64_t instruction_address = insn[i].address;
+// const uint16_t instruction_size = insn[i].size;
+// std::string instruction_argument = insn[i].op_str;
+
+// if (_is_resolvable_call_instruction(instruction_operation,
+//                                     instruction_argument))
+//   instruction_argument +=
+//       _resolve_symbol(static_symbols, dynamic_symbols,
+//                       _hex_to_decimal(instruction_argument));
+// if (_is_load_instruction(instruction_operation))
+//   instruction_argument +=
+//       _resolve_address(static_symbols, dynamic_symbols, strings,
+//                        instruction_address + instruction_size +
+//                            get_address(instruction_argument));
 
 bool Disassembler::_is_resolvable_call_instruction(
     const std::string &instruction_operation,
@@ -76,7 +97,8 @@ Disassembler::_resolve_address(const std::vector<NamedSymbol> &static_symbols,
                                const std::vector<NamedSymbol> &dynamic_symbols,
                                const std::vector<ElfString> &strings,
                                uint64_t address) {
-  const std::string symbol = _resolve_symbol(static_symbols, dynamic_symbols, address);
+  const std::string symbol =
+      _resolve_symbol(static_symbols, dynamic_symbols, address);
   if (!symbol.empty())
     return symbol;
 
