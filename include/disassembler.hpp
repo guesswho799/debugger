@@ -22,8 +22,10 @@ public:
 
   std::vector<Line> disassemble(const std::vector<uint8_t> &input_buffer,
                                 uint64_t base_address,
-                                const std::vector<NamedSymbol> &static_symbols,
-                                const std::vector<ElfString> &strings);
+                                const std::vector<NamedSymbol> &static_symbols={},
+                                const std::vector<NamedSymbol> &dynamic_symbols={},
+                                const std::vector<ElfString> &strings={});
+  static int64_t get_address(const std::string &instruction_argument);
 
 private:
   static bool
@@ -31,11 +33,12 @@ private:
                                   const std::string &instruction_argument);
   static std::string
   _resolve_address(const std::vector<NamedSymbol> &static_symbols,
+                   const std::vector<NamedSymbol> &dynamic_symbols,
                    const std::vector<ElfString> &strings, uint64_t address);
   static std::string
   _resolve_symbol(const std::vector<NamedSymbol> &static_symbols,
+                  const std::vector<NamedSymbol> &dynamic_symbols,
                   uint64_t address);
-  static int64_t _get_address(const std::string &instruction_argument);
   static std::string _resolve_string(const std::vector<ElfString> &strings,
                                      uint64_t address);
   static int64_t _hex_to_decimal(const std::string &number);

@@ -26,6 +26,7 @@ std::vector<Disassembler::Line>
 Disassembler::disassemble(const std::vector<uint8_t> &input_buffer,
                           uint64_t base_address,
                           const std::vector<NamedSymbol> &static_symbols,
+                          const std::vector<NamedSymbol> &dynamic_symbols,
                           const std::vector<ElfString> &strings) {
   cs_insn *insn;
   const ssize_t count = cs_disasm(_handle, input_buffer.data(),
@@ -45,13 +46,14 @@ Disassembler::disassemble(const std::vector<uint8_t> &input_buffer,
 
     if (_is_resolvable_call_instruction(instruction_operation,
                                         instruction_argument))
-      instruction_argument += _resolve_symbol(
-          static_symbols, _hex_to_decimal(instruction_argument));
+      instruction_argument +=
+          _resolve_symbol(static_symbols, dynamic_symbols,
+                          _hex_to_decimal(instruction_argument));
     if (_is_load_instruction(instruction_operation))
       instruction_argument +=
-          _resolve_address(static_symbols, strings,
+          _resolve_address(static_symbols, dynamic_symbols, strings,
                            instruction_address + instruction_size +
-                               _get_address(instruction_argument));
+                               get_address(instruction_argument));
 
     result.emplace_back(opcodes, instruction_operation, instruction_argument,
                         instruction_address, _is_jump(instruction_operation));
@@ -71,9 +73,10 @@ bool Disassembler::_is_resolvable_call_instruction(
 
 std::string
 Disassembler::_resolve_address(const std::vector<NamedSymbol> &static_symbols,
+                               const std::vector<NamedSymbol> &dynamic_symbols,
                                const std::vector<ElfString> &strings,
                                uint64_t address) {
-  const std::string symbol = _resolve_symbol(static_symbols, address);
+  const std::string symbol = _resolve_symbol(static_symbols, dynamic_symbols, address);
   if (!symbol.empty())
     return symbol;
 
@@ -86,17 +89,24 @@ Disassembler::_resolve_address(const std::vector<NamedSymbol> &static_symbols,
 
 std::string
 Disassembler::_resolve_symbol(const std::vector<NamedSymbol> &static_symbols,
+                              const std::vector<NamedSymbol> &dynamic_symbols,
                               uint64_t address) {
   // TODO: optimize, unordered map instead of vector
   for (const auto &symbol : static_symbols) {
     if (symbol.value == address)
       return " <" + symbol.name + ">";
   }
+
+  for (const auto &symbol : dynamic_symbols) {
+    if (symbol.value == address)
+      return " <" + symbol.name + "/external>";
+  }
+
   return "";
 }
 
-int64_t Disassembler::_get_address(const std::string &instruction_argument) {
-  const std::regex pattern(".*, \\[rip ([\\+-]) 0x([0-9a-f]+)\\]");
+int64_t Disassembler::get_address(const std::string &instruction_argument) {
+  const std::regex pattern(".*\\[rip ([\\+-]) 0x([0-9a-f]+)\\]");
   std::smatch match;
   if (std::regex_match(instruction_argument, match, pattern)) {
     int64_t address = _hex_to_decimal(match[2].str());
@@ -110,7 +120,7 @@ int64_t Disassembler::_get_address(const std::string &instruction_argument) {
 
 std::string Disassembler::_resolve_string(const std::vector<ElfString> &strings,
                                           uint64_t address) {
-  constexpr size_t max_string_size = 10;
+  constexpr size_t max_string_size = 15;
   for (const auto &s : strings) {
     if (s.address == address) {
       std::string result = s.value;
