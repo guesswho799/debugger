@@ -113,3 +113,10 @@ struct ElfString {
   std::string value;
   uint64_t address;
 };
+
+struct ElfRelocation {
+  uint64_t file_offset;
+  uint32_t dont_know;
+  uint32_t symbol_index;
+  uint64_t extra_info;
+};

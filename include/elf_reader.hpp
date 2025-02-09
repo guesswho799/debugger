@@ -40,7 +40,8 @@ public:
   get_implemented_functions(uint64_t base_address) const;
   std::vector<uint64_t> get_function_calls(std::string name,
                                            uint64_t base_address) const;
-  std::vector<Disassembler::Line> get_function_code(NamedSymbol function) const;
+  std::vector<Disassembler::Line> get_function_code(const NamedSymbol &function,
+                                                    bool try_resolve) const;
   std::vector<Disassembler::Line>
   get_function_code_by_name(std::string name) const;
 
@@ -56,6 +57,7 @@ private:
   std::vector<NamedSymbol> fake_static_symbols_factory();
   std::vector<NamedSymbol> static_symbols_factory();
   std::vector<NamedSymbol> dynamic_symbols_factory();
+  void resolve_dynamic_symbols_address(std::vector<NamedSymbol> &symbols);
   std::vector<ElfString> strings_factory();
   std::vector<char> get_next_string(const NamedSection &string_section);
   bool _is_valid_string(const std::vector<char> &s);
@@ -77,4 +79,7 @@ private:
   static constexpr std::string_view dynamic_symbol_section_name = ".dynsym";
   static constexpr std::string_view dynamic_symbol_name_section_name =
       ".dynstr";
+  static constexpr std::string_view relocation_plt_symbol_info_section_name =
+      ".rela.plt";
+  static constexpr std::string_view relocation_plt_section_name = ".plt.sec";
 };
