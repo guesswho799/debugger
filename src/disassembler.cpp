@@ -34,33 +34,45 @@ Disassembler::disassemble(const std::vector<uint8_t> &input_buffer,
   if (count < 0)
     throw Status::disassembler__parse_failed;
 
-  auto buffer_iterator = input_buffer.begin();
   std::vector<Disassembler::Line> result;
+  auto buffer_iterator = input_buffer.begin();
+
   for (int i = 0; i < count; i++) {
+
+    const uint16_t size = insn[i].size;
+    const uint64_t address = insn[i].address;
+    const std::string argument = insn[i].op_str;
+    const std::string operation = insn[i].mnemonic;
+
+    const uint64_t post_address = address + size;
     const std::vector<uint16_t> opcodes(buffer_iterator,
-                                        buffer_iterator + insn[i].size);
-    const std::string instruction_operation = insn[i].mnemonic;
-    const uint64_t instruction_address = insn[i].address;
-    const uint16_t instruction_size = insn[i].size;
-    std::string instruction_argument = insn[i].op_str;
+                                        buffer_iterator + size);
+    const std::string comment =
+        _generate_comment(operation, argument, post_address, static_symbols,
+                          dynamic_symbols, strings);
+    const std::string full_argument = argument + comment;
 
-    if (_is_resolvable_call_instruction(instruction_operation,
-                                        instruction_argument))
-      instruction_argument +=
-          _resolve_symbol(static_symbols, dynamic_symbols,
-                          _hex_to_decimal(instruction_argument));
-    if (_is_load_instruction(instruction_operation))
-      instruction_argument +=
-          _resolve_address(static_symbols, dynamic_symbols, strings,
-                           instruction_address + instruction_size +
-                               get_address(instruction_argument));
-
-    result.emplace_back(opcodes, instruction_operation, instruction_argument,
-                        instruction_address, _is_jump(instruction_operation));
-    buffer_iterator += instruction_size;
+    result.emplace_back(opcodes, operation, full_argument, address,
+                        _is_jump(operation));
+    buffer_iterator += size;
   }
   cs_free(insn, count);
   return result;
+}
+
+std::string
+Disassembler::_generate_comment(const std::string &operation,
+                                const std::string &argument, uint64_t address,
+                                const std::vector<NamedSymbol> &static_symbols,
+                                const std::vector<NamedSymbol> &dynamic_symbols,
+                                const std::vector<ElfString> &strings) {
+  if (_is_resolvable_call_instruction(operation, argument))
+    return _resolve_symbol(static_symbols, dynamic_symbols,
+                           _hex_to_decimal(argument));
+  else if (_is_load_instruction(operation))
+    return _resolve_address(static_symbols, dynamic_symbols, strings,
+                            address + get_address(argument));
+  return "";
 }
 
 bool Disassembler::_is_resolvable_call_instruction(
@@ -76,7 +88,8 @@ Disassembler::_resolve_address(const std::vector<NamedSymbol> &static_symbols,
                                const std::vector<NamedSymbol> &dynamic_symbols,
                                const std::vector<ElfString> &strings,
                                uint64_t address) {
-  const std::string symbol = _resolve_symbol(static_symbols, dynamic_symbols, address);
+  const std::string symbol =
+      _resolve_symbol(static_symbols, dynamic_symbols, address);
   if (!symbol.empty())
     return symbol;
 
@@ -105,19 +118,6 @@ Disassembler::_resolve_symbol(const std::vector<NamedSymbol> &static_symbols,
   return "";
 }
 
-int64_t Disassembler::get_address(const std::string &instruction_argument) {
-  const std::regex pattern(".*\\[rip ([\\+-]) 0x([0-9a-f]+)\\]");
-  std::smatch match;
-  if (std::regex_match(instruction_argument, match, pattern)) {
-    int64_t address = _hex_to_decimal(match[2].str());
-    if (0 == strncmp(match[1].str().c_str(), "-", 1)) {
-      address *= -1;
-    }
-    return address;
-  }
-  return 0;
-}
-
 std::string Disassembler::_resolve_string(const std::vector<ElfString> &strings,
                                           uint64_t address) {
   constexpr size_t max_string_size = 15;
@@ -132,6 +132,19 @@ std::string Disassembler::_resolve_string(const std::vector<ElfString> &strings,
     }
   }
   return "";
+}
+
+int64_t Disassembler::get_address(const std::string &instruction_argument) {
+  const std::regex pattern(".*\\[rip ([\\+-]) 0x([0-9a-f]+)\\]");
+  std::smatch match;
+  if (std::regex_match(instruction_argument, match, pattern)) {
+    int64_t address = _hex_to_decimal(match[2].str());
+    if (0 == strncmp(match[1].str().c_str(), "-", 1)) {
+      address *= -1;
+    }
+    return address;
+  }
+  return 0;
 }
 
 int64_t Disassembler::_hex_to_decimal(const std::string &number) {
