@@ -17,12 +17,9 @@ It displays all information in tui format and is controlled only by simple keybo
 ![image](https://github.com/user-attachments/assets/5b5cb8dc-f01c-42f1-928d-63ef5b6558dd)
 
 
-## How to build test binary
-```console
-g++ main.cpp -oprogram
-```
 ## How to build debugger
 ```console
+g++ test/main.cpp -otest/program
 mkdir build && cd build
 cmake .. && cmake --build .
 ./Debugger ../test/program main
