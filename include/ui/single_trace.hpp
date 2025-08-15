@@ -10,10 +10,10 @@ class SingleTrace : Dependency<AppState, Code> {
   using Dependency::Dependency;
 
 private:
-  typedef struct State {
+  struct State {
     bool view_result;
     uint64_t selector;
-  } State_t;
+  };
 
 public:
   ftxui::Component get_logic();
@@ -25,10 +25,13 @@ public:
   void reset_selector();
 
 private:
-  State_t _generate_initial_state();
+  State _generate_initial_state();
   ftxui::Component _generate_logic();
 
+  ftxui::Element _display_status();
+  ftxui::Element _display_result();
+
 private:
-  State_t _state = _generate_initial_state();
+  State _state = _generate_initial_state();
   ftxui::Component _logic = _generate_logic();
 };

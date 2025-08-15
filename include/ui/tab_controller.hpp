@@ -16,7 +16,7 @@ class TabController : Dependency<AppState, Code, File, Function, String,
   using Dependency::Dependency;
 
 private:
-  typedef struct State {
+  struct State {
     std::vector<std::string> tab_values;
     std::vector<std::string> display_values;
     std::vector<std::string> execute_values;
@@ -26,16 +26,16 @@ private:
     ftxui::Component display_main;
     ftxui::Component execute_main;
     ftxui::Component tab_container;
-  } State_t;
+  };
 
 public:
   ftxui::Component get_logic();
 
 private:
-  State_t _generate_initial_state();
+  State _generate_initial_state();
   ftxui::Component _generate_logic();
 
 private:
-  State_t _state = _generate_initial_state();
+  State _state = _generate_initial_state();
   ftxui::Component _logic = _generate_logic();
 };

@@ -3,7 +3,7 @@
 
 ftxui::Component String::get_logic() { return _logic; }
 
-String::State_t String::_generate_initial_state() {
+String::State String::_generate_initial_state() {
   float scroll_x = 0.f;
   float scroll_y = 0.f;
   ftxui::SliderOption<float> option_x;
@@ -36,7 +36,8 @@ ftxui::Component String::_generate_logic() {
   // TODO: fix slider acting wierd,
   // probably need to add main component to Renderer
   auto string_tab = ftxui::Renderer([&] {
-    return Loader::load_strings(get<AppState>()->static_debugger->get_strings()) |
+    return Loader::load_strings(
+               get<AppState>()->static_debugger->get_strings()) |
            ftxui::focusPositionRelative(_state.scroll_x, _state.scroll_y) |
            ftxui::vscroll_indicator | ftxui::frame | ftxui::flex;
   });

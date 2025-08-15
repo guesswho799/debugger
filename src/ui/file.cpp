@@ -1,9 +1,10 @@
 #include "ui/file.hpp"
 #include <filesystem>
+#include <ranges>
 
 ftxui::Component File::get_logic() { return _logic; }
 
-File::State_t File::_generate_initial_state() {
+File::State File::_generate_initial_state() {
   return {
       .file_path = "",
       .file_input = ftxui::Input(&_state.file_path, ""),
@@ -17,34 +18,7 @@ ftxui::Component File::_generate_logic() {
   return ftxui::Renderer(
              _state.file_input,
              [&] {
-               _state.files.clear();
-               _state.files_as_strings.clear();
-               std::string search_path = _state.file_path;
-               if (!std::filesystem::exists(_state.file_path)) {
-                 const size_t last_directory_index =
-                     _state.file_path.find_last_of('/');
-                 if (last_directory_index == std::string::npos) {
-                   search_path = ".";
-                 } else {
-                   search_path = std::string(_state.file_path.c_str(),
-                                             last_directory_index);
-                 }
-               }
-               if (std::filesystem::is_directory(search_path)) {
-                 int i = 0;
-                 for (const auto &file :
-                      std::filesystem::recursive_directory_iterator(
-                          search_path)) {
-                   _state.files.emplace_back(
-                       ftxui::MenuEntry(file.path().string()));
-                   _state.files_as_strings.emplace_back(file.path().string());
-                   if (++i == 20)
-                     break;
-                 }
-               } else {
-                 _state.files.emplace_back(ftxui::MenuEntry(search_path));
-                 _state.files_as_strings.emplace_back(search_path);
-               }
+               _store_files_from_input();
 
                auto menu = ftxui::Container::Vertical(
                    _state.files, &_state.open_file_selector);
@@ -82,8 +56,8 @@ ftxui::Component File::_generate_logic() {
                _state.open_file_selector++;
              if (_state.open_file_selector < 0)
                _state.open_file_selector = 0;
-             const int files_size =
-                 static_cast<int>(_state.files.end() - _state.files.begin() - 1);
+             const int files_size = static_cast<int>(_state.files.end() -
+                                                     _state.files.begin() - 1);
              if (_state.open_file_selector > files_size)
                _state.open_file_selector = files_size;
              if (event == ftxui::Event::Return) {
@@ -96,4 +70,37 @@ ftxui::Component File::_generate_logic() {
            }
            return false;
          });
+}
+
+void File::_store_files_from_input() {
+  _state.files.clear();
+  _state.files_as_strings.clear();
+
+  std::string search_path = _get_diretory_name(_state.file_path);
+  if (std::filesystem::is_directory(search_path)) {
+    for (const auto &file :
+         std::filesystem::recursive_directory_iterator(search_path) |
+             std::views::take(20)) {
+      _append_file(file.path().string());
+    }
+  } else {
+    _append_file(search_path);
+  }
+}
+
+std::string File::_get_diretory_name(const std::string &file_name) {
+  if (!std::filesystem::exists(file_name)) {
+    const size_t last_directory_index = file_name.find_last_of('/');
+    if (last_directory_index == std::string::npos) {
+      return ".";
+    } else {
+      return std::string(_state.file_path.c_str(), last_directory_index);
+    }
+  }
+  return file_name;
+}
+
+void File::_append_file(const std::string &file_name) {
+  _state.files.emplace_back(ftxui::MenuEntry(file_name));
+  _state.files_as_strings.emplace_back(file_name);
 }
