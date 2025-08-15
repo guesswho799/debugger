@@ -18,16 +18,16 @@ public:
   void dec_selector();
 
 private:
-  typedef struct State {
+  struct State {
     uint64_t selector;
     ftxui::Element disassembled_code;
-  } State_t;
+  };
 
 private:
-  State_t _generate_initial_state();
+  State _generate_initial_state();
   ftxui::Component _generate_logic();
 
 private:
-  State_t _state = _generate_initial_state();
+  State _state = _generate_initial_state();
   ftxui::Component _logic = _generate_logic();
 };

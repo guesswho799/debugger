@@ -8,7 +8,7 @@ class Function : Dependency<AppState, Code> {
   using Dependency::Dependency;
 
 private:
-  typedef struct State {
+  struct State {
     float scroll_x;
     float scroll_y;
     ftxui::SliderOption<float> option_x;
@@ -19,16 +19,18 @@ private:
     ftxui::Component function_input;
     int function_selector;
     std::vector<std::vector<std::string>> function_table_content;
-  } State_t;
+  };
 
 public:
   ftxui::Component get_logic();
 
 private:
-  State_t _generate_initial_state();
+  State _generate_initial_state();
   ftxui::Component _generate_logic();
 
+  void _store_functions_from_input();
+
 private:
-  State_t _state = _generate_initial_state();
+  State _state = _generate_initial_state();
   ftxui::Component _logic = _generate_logic();
 };

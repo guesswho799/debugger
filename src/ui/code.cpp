@@ -3,7 +3,7 @@
 
 ftxui::Component Code::get_logic() { return _logic; }
 
-Code::State_t Code::_generate_initial_state() {
+Code::State Code::_generate_initial_state() {
   return {.selector = 0, .disassembled_code = ftxui::text("no file loaded..")};
 }
 
@@ -14,7 +14,7 @@ ftxui::Component Code::_generate_logic() {
 void Code::update_code() {
   _state.disassembled_code = Loader::load_instructions(
       get<AppState>()->function_name,
-      get<AppState>()->static_debugger.value().get_function_code_by_name(
+      get<AppState>()->static_debugger->get_function_code_by_name(
           get<AppState>()->function_name),
       _state.selector);
 }

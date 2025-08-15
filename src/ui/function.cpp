@@ -3,7 +3,7 @@
 
 ftxui::Component Function::get_logic() { return _logic; }
 
-Function::State_t Function::_generate_initial_state() {
+Function::State Function::_generate_initial_state() {
   float scroll_x = 0.f;
   float scroll_y = 0.f;
   ftxui::SliderOption<float> option_x;
@@ -41,21 +41,7 @@ ftxui::Component Function::_generate_logic() {
       ftxui::Renderer(
           _state.function_input,
           [&] {
-            _state.function_table_content.clear();
-            if (_state.function_input_content.empty() or
-                !get<AppState>()->in_search_mode) {
-              _state.function_table_content = Loader::load_function_table(
-                  get<AppState>()->static_debugger.value());
-            } else {
-              for (const auto &item : Loader::load_function_table(
-                       get<AppState>()->static_debugger.value()))
-                if (item[0].find(_state.function_input_content) !=
-                    std::string::npos)
-                  _state.function_table_content.push_back(item);
-            }
-            _state.function_table_content.insert(
-                _state.function_table_content.begin(), 1,
-                {"Name", "Address ", "Size"});
+            _store_functions_from_input();
 
             auto table = ftxui::Table(_state.function_table_content);
             table.SelectRow(0).Decorate(ftxui::bold);
@@ -135,4 +121,20 @@ ftxui::Component Function::_generate_logic() {
       {ftxui::Container::Horizontal({function_tab, _state.scrollbar_y}) |
            ftxui::flex,
        _state.scrollbar_x});
+}
+
+void Function::_store_functions_from_input() {
+  _state.function_table_content.clear();
+  if (_state.function_input_content.empty() or
+      !get<AppState>()->in_search_mode) {
+    _state.function_table_content =
+        Loader::load_function_table(get<AppState>()->static_debugger.value());
+  } else {
+    for (const auto &item :
+         Loader::load_function_table(get<AppState>()->static_debugger.value()))
+      if (item[0].find(_state.function_input_content) != std::string::npos)
+        _state.function_table_content.push_back(item);
+  }
+  _state.function_table_content.insert(_state.function_table_content.begin(), 1,
+                                       {"Name", "Address ", "Size"});
 }

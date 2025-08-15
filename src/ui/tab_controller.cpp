@@ -6,7 +6,7 @@
 
 ftxui::Component TabController::get_logic() { return _logic; }
 
-TabController::State_t TabController::_generate_initial_state() {
+TabController::State TabController::_generate_initial_state() {
   auto tab_option = ftxui::MenuOption::HorizontalAnimated();
   tab_option.elements_infix = [] { return ftxui::text(" | "); };
   tab_option.entries_option.transform = [](const ftxui::EntryState &state) {
