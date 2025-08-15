@@ -12,7 +12,10 @@ BreakpointHook::BreakpointHook(uint64_t address, pid_t child_pid)
 
 BreakpointHook::~BreakpointHook() noexcept {
   if (_child_pid != 0)
-    BEST_EFFORT(unhook());
+    try {
+      unhook();
+    } catch (...) {
+    }
 }
 
 BreakpointHook::BreakpointHook(BreakpointHook &&other) noexcept

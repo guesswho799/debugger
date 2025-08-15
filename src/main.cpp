@@ -8,7 +8,6 @@
 #include <ftxui/util/ref.hpp>
 
 #include "app_state.hpp"
-#include "status.hpp"
 #include "ui/code.hpp"
 #include "ui/file.hpp"
 #include "ui/function.hpp"
@@ -51,8 +50,8 @@ int main(int argc, char *argv[]) {
       code_tab->update_code();
 
     app_state->screen.Loop(tab_controller.get_logic());
-  } catch (const CriticalException &exception) {
-    std::cout << "critical exception caught: " << exception.get() << std::endl;
+  } catch (const std::exception &exception) {
+    std::cout << "critical exception caught: " << exception.what() << std::endl;
     return 1;
   }
 

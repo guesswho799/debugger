@@ -1,6 +1,5 @@
 #include "elf_runner.hpp"
 #include "ptrace_utils.hpp"
-#include "status.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -40,7 +39,7 @@ void ElfRunner::reset() {
 pid_t ElfRunner::_run(std::string file_name) {
   const pid_t pid = fork();
   if (pid == -1)
-    throw CriticalException(Status::elf_runner__fork_failed);
+    throw std::runtime_error("elf runner fork failed");
 
   // child
   if (pid == 0) {
@@ -156,10 +155,10 @@ void ElfRunner::_log_step(uint64_t base_address) {
   int child_status = 0;
   Ptrace::single_step(_child_pid);
   if (wait(&child_status) == -1) {
-    throw CriticalException(Status::elf_runner__wait_failed);
+    throw std::runtime_error("elf runner wait failed");
   }
   if (WIFEXITED(child_status) or WIFSIGNALED(child_status)) {
-    throw CriticalException(Status::elf_runner__child_finished);
+    throw std::runtime_error("elf runner chiled finished");
   }
 }
 
@@ -171,7 +170,7 @@ void ElfRunner::_log_function_arguments(
   const auto iterator =
       std::find_if(functions.begin(), functions.end(), get_function_by_address);
   if (iterator == functions.end())
-    throw CriticalException(Status::elf_runner__unable_to_find_function);
+    throw std::runtime_error("elf runner unable to find function");
 
   const auto regs = Ptrace::get_regs(_child_pid);
   _runtime_arguments[iterator->name] = {regs.rdi, regs.rsi, regs.rdx};
@@ -181,7 +180,7 @@ int ElfRunner::_get_child_status() {
   int child_status = 0;
   int status = waitpid(_child_pid, &child_status, WNOHANG | WUNTRACED);
   if (status == -1) {
-    throw CriticalException(Status::elf_runner__wait_failed);
+    throw std::runtime_error("elf runner wait failed");
   }
   if (status != 0) {
     _update_is_dead(child_status);

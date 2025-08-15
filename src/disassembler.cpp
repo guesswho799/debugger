@@ -1,11 +1,11 @@
 #include "disassembler.hpp"
-#include "status.hpp"
 
 #include <algorithm>
 #include <cstdint>
 #include <elf.h>
 #include <regex>
 #include <sstream>
+#include <stdexcept>
 #include <string.h>
 #include <string>
 
@@ -18,7 +18,7 @@ Disassembler::~Disassembler() { cs_close(&_handle); }
 csh Disassembler::_get_handler() {
   csh handle;
   if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
-    throw Status::disassembler__open_failed;
+    throw std::runtime_error("disassembler open failed");
   return handle;
 }
 
@@ -32,7 +32,7 @@ Disassembler::disassemble(const std::vector<uint8_t> &input_buffer,
   const ssize_t count = cs_disasm(_handle, input_buffer.data(),
                                   input_buffer.size(), base_address, 0, &insn);
   if (count < 0)
-    throw Status::disassembler__parse_failed;
+    throw std::runtime_error("disassembler parse failed");
 
   std::vector<Disassembler::Line> result;
   auto buffer_iterator = input_buffer.begin();
